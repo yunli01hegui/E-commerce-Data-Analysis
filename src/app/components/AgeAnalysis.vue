@@ -122,7 +122,10 @@ const ageComparisonOption = computed(() => ({
     borderColor: '#334155',
     textStyle: { color: '#fff' },
     formatter: (params: any) => {
-      let res = `<div style="font-weight:bold;margin-bottom:5px;border-bottom:1px solid #444;padding-bottom:3px;">${params[0].name}</div>`;
+      const rangeName = params[0].name;
+      const stat = ageRangeStats.value.find(s => s.range === rangeName);
+      const countStr = stat ? ` (${stat.count}人)` : '';
+      let res = `<div style="font-weight:bold;margin-bottom:5px;border-bottom:1px solid #444;padding-bottom:3px;">${rangeName}${countStr}</div>`;
       params.forEach((item: any) => {
         const val = item.value;
         const formattedVal = item.seriesName === '客单价' ? val.toFixed(2) : val.toLocaleString();
