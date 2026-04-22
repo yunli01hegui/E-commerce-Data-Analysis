@@ -117,8 +117,8 @@ def user_distribution():
     gender_data_list = gender_data.to_dict('records')
 
     # 2. 年龄分布：根据业务逻辑将年龄切分为不同生命周期阶段，并包含性别细分
-    age_bins = [0, 18, 25, 35, 45, 55, 120]
-    age_labels = ['18岁以下', '18-25岁', '26-35岁', '36-45岁', '46-55岁', '56岁以上']
+    age_bins = [0, 18, 25, 35, 45, 55, 65, 120]
+    age_labels = ['18岁以下', '18-25岁', '26-35岁', '36-45岁', '46-55岁', '56-65岁', '66岁以上']
     df['age_group'] = pd.cut(df['age'], bins=age_bins, labels=age_labels, include_lowest=True)
     
     # 基础统计（总数、金额）
@@ -340,8 +340,8 @@ def age_analysis():
     if df.empty: return jsonify({})
 
     # 年龄段定义
-    age_bins = [18, 25, 35, 45, 55, 65, 120]
-    age_labels = ['18-25岁', '26-35岁', '36-45岁', '46-55岁', '56-65岁', '66岁以上']
+    age_bins = [0, 18, 25, 35, 45, 55, 65, 120]
+    age_labels = ['18岁以下', '18-25岁', '26-35岁', '36-45岁', '46-55岁', '56-65岁', '66岁以上']
     df['age_range'] = pd.cut(df['age'], bins=age_bins, labels=age_labels, include_lowest=True)
 
     # 1. 年龄段统计

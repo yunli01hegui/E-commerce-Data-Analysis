@@ -203,6 +203,7 @@ const ageOption = computed(() => ({
   grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
   xAxis: {
     type: 'category',
+    name: '年龄',
     data: ageData.value.map(d => d.name),
     axisLine: { lineStyle: { color: '#334155' } },
     axisLabel: { color: '#94a3b8' },

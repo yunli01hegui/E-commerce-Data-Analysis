@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-6">
     <!-- 年龄段概览卡片 -->
-    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
       <div v-for="stat in ageRangeStats" :key="stat.range" class="bg-slate-800 rounded-lg p-4 border border-slate-700">
         <div class="flex items-center gap-2 mb-3">
           <div 
@@ -45,7 +45,7 @@
 
     <!-- 年龄分布细节 -->
     <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
-      <h3 class="text-xl font-semibold text-white mb-6">年龄分布详情（18-65岁）</h3>
+      <h3 class="text-xl font-semibold text-white mb-6">年龄分布详情</h3>
       <div class="h-[300px]">
         <v-chart class="h-full w-full" :option="ageDistributionOption" autoresize />
       </div>
@@ -98,11 +98,13 @@ use([
 ]);
 
 const ageRanges = [
+  { label: '18岁以下', color: '#60a5fa' },
   { label: '18-25岁', color: '#3b82f6' },
   { label: '26-35岁', color: '#8b5cf6' },
   { label: '36-45岁', color: '#10b981' },
   { label: '46-55岁', color: '#f59e0b' },
-  { label: '56岁以上', color: '#ef4444' },
+  { label: '56-65岁', color: '#ef4444' },
+  { label: '66岁以上', color: '#991b1b' },
 ];
 
 const ageRangeStats = computed(() => {
@@ -187,12 +189,14 @@ const ageDistributionOption = computed(() => ({
   grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
   xAxis: {
     type: 'category',
+    name: '年龄',
     data: ageAnalysis.ageDistribution.map(d => d.age),
     axisLine: { lineStyle: { color: '#334155' } },
     axisLabel: { color: '#94a3b8' },
   },
   yAxis: {
     type: 'value',
+    name: '数量',
     axisLine: { lineStyle: { color: '#334155' } },
     axisLabel: { color: '#94a3b8' },
     splitLine: { lineStyle: { color: '#334155' } },
