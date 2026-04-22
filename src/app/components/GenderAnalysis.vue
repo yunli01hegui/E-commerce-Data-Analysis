@@ -41,11 +41,44 @@
       </div>
     </div>
 
-    <!-- 性别对比分析 -->
+    <!-- 性别分布与性别消费对比 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- 性别分布 -->
+      <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+        <h3 class="text-xl font-semibold text-white mb-6">性别分布</h3>
+        <div class="h-[250px]">
+          <v-chart class="h-full w-full" :option="genderOption" autoresize />
+        </div>
+        <div class="flex flex-col justify-center space-y-2 mt-4">
+          <div v-for="(item, index) in genderData" :key="item.name" class="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-3 h-3 rounded-full"
+                :style="{ backgroundColor: genderColors[index] }"
+              ></div>
+              <span class="text-white text-sm">{{ item.name === '男' ? '男性用户' : '女性用户' }}</span>
+            </div>
+            <div class="text-right">
+              <span class="text-white font-semibold text-sm">{{ item.value }}人</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 性别对比分析 -->
+      <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+        <h3 class="text-xl font-semibold text-white mb-6">性别消费对比</h3>
+        <div class="h-[330px]">
+          <v-chart class="h-full w-full" :option="comparisonOption" autoresize />
+        </div>
+      </div>
+    </div>
+
+    <!-- 年龄分布 -->
     <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
-      <h3 class="text-xl font-semibold text-white mb-6">性别消费对比</h3>
+      <h3 class="text-xl font-semibold text-white mb-6">年龄分布</h3>
       <div class="h-[300px]">
-        <v-chart class="h-full w-full" :option="comparisonOption" autoresize />
+        <v-chart class="h-full w-full" :option="ageOption" autoresize />
       </div>
     </div>
 
@@ -89,7 +122,7 @@
 import { computed } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { BarChart, RadarChart } from 'echarts/charts';
+import { BarChart, RadarChart, PieChart } from 'echarts/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -98,12 +131,13 @@ import {
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { Users } from 'lucide-vue-next';
-import { genderAnalysis } from '../data/mockData';
+import { genderAnalysis, userDistribution } from '../data/mockData';
 
 use([
   CanvasRenderer,
   BarChart,
   RadarChart,
+  PieChart,
   TooltipComponent,
   LegendComponent,
   GridComponent,
@@ -113,6 +147,95 @@ use([
 // 使用从后端预计算的响应式数据
 const genderStats = computed(() => genderAnalysis.genderStats);
 const comparisonData = computed(() => genderAnalysis.comparisonData);
+
+const genderData = computed(() => userDistribution.genderData);
+const ageData = computed(() => userDistribution.ageData);
+
+const genderColors = ['#3b82f6', '#ec4899'];
+
+const genderOption = computed(() => ({
+  backgroundColor: 'transparent',
+  tooltip: {
+    trigger: 'item',
+    backgroundColor: '#1e293b',
+    borderColor: '#334155',
+    textStyle: { color: '#fff' },
+  },
+  series: [
+    {
+      name: '性别分布',
+      type: 'pie',
+      radius: ['40%', '70%'],
+      avoidLabelOverlap: false,
+      itemStyle: {
+        borderRadius: 10,
+        borderColor: '#1e293b',
+        borderWidth: 2
+      },
+      label: {
+        show: true,
+        formatter: '{b}: {d}%',
+        color: '#94a3b8'
+      },
+      data: genderData.value.map((d, i) => ({
+        value: d.value,
+        name: d.name === '男' ? '男性' : '女性',
+        itemStyle: { color: genderColors[i] }
+      })),
+    },
+  ],
+}));
+
+const ageOption = computed(() => ({
+  backgroundColor: 'transparent',
+  tooltip: {
+    trigger: 'axis',
+    axisPointer: { type: 'shadow' },
+    backgroundColor: '#1e293b',
+    borderColor: '#334155',
+    textStyle: { color: '#fff' },
+  },
+  legend: {
+    data: ['男性', '女性'],
+    textStyle: { color: '#94a3b8' },
+    top: 0
+  },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: {
+    type: 'category',
+    data: ageData.value.map(d => d.name),
+    axisLine: { lineStyle: { color: '#334155' } },
+    axisLabel: { color: '#94a3b8' },
+  },
+  yAxis: {
+    type: 'value',
+    name: '人数',
+    axisLine: { lineStyle: { color: '#334155' } },
+    axisLabel: { color: '#94a3b8' },
+    splitLine: { lineStyle: { color: '#334155' } },
+  },
+  series: [
+    {
+      name: '男性',
+      type: 'bar',
+      barGap: '10%', // 男女柱子之间的间距
+      data: ageData.value.map(d => d.male || 0),
+      itemStyle: { 
+        color: '#3b82f6',
+        borderRadius: [4, 4, 0, 0] 
+      },
+    },
+    {
+      name: '女性',
+      type: 'bar',
+      data: ageData.value.map(d => d.female || 0),
+      itemStyle: { 
+        color: '#ec4899', 
+        borderRadius: [4, 4, 0, 0] 
+      },
+    },
+  ],
+}));
 
 // 动态从后端数据中获取品类列表，确保顺序一致
 const categories = computed(() => (genderAnalysis.radarData || []).map(d => d.category));
