@@ -15,7 +15,7 @@
 - 月度销售趋势图（面积图+折线图）
 - 日销售趋势图（最近30天）
 
-#### 2. **性别分析** 👥
+#### 2. **用户分析** 👥
 - 男女用户概览卡片（总消费、客单价、订单数、购买件数）
 - 性别消费对比柱状图
 - 品类偏好雷达图
@@ -91,12 +91,11 @@ src/app/
 │   ├── AIRecommendation.tsx     # AI智能推荐
 │   ├── AgeAnalysis.tsx          # 年龄分析
 │   ├── CityConsumption.tsx      # 城市消费
-│   ├── GenderAnalysis.tsx       # 性别分析
+│   ├── GenderAnalysis.tsx       # 用户分析
 │   ├── ProductAnalysis.tsx      # 商品销售
 │   ├── ProductRecommendation.tsx # 商品推荐
 │   ├── RFMAnalysis.tsx          # RFM分析
-│   ├── SalesTrend.tsx           # 销售趋势
-│   └── UserDistribution.tsx     # 用户分布
+│   └── SalesTrend.tsx           # 销售趋势
 ├── data/
 │   └── mockData.ts              # 模拟数据（229+条订单）
 ├── pages/

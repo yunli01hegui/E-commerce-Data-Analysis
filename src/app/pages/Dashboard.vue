@@ -40,7 +40,6 @@ import {
   BarChart3, Users, Package, TrendingUp, User, MapPin, Award, Sparkles 
 } from 'lucide-vue-next';
 import SalesTrend from '../components/SalesTrend.vue';
-import UserDistribution from '../components/UserDistribution.vue';
 import ProductAnalysis from '../components/ProductAnalysis.vue';
 import GenderAnalysis from '../components/GenderAnalysis.vue';
 import AgeAnalysis from '../components/AgeAnalysis.vue';
@@ -49,7 +48,7 @@ import RFMAnalysis from '../components/RFMAnalysis.vue';
 import ProductRecommendation from '../components/ProductRecommendation.vue';
 import { fetchAllStats } from '../data/mockData';
 
-type TabType = 'trend' | 'users' | 'products' | 'gender' | 'age' | 'city' | 'rfm' | 'recommendation';
+type TabType = 'trend' | 'products' | 'gender' | 'age' | 'city' | 'rfm' | 'recommendation';
 
 const activeTab = ref<TabType>('trend');
 
@@ -59,8 +58,7 @@ onMounted(() => {
 
 const tabs = [
   { id: 'trend' as TabType, label: '销售趋势', icon: markRaw(TrendingUp) },
-  { id: 'users' as TabType, label: '用户分析', icon: markRaw(Users) },
-  { id: 'gender' as TabType, label: '性别分析', icon: markRaw(Users) },
+  { id: 'gender' as TabType, label: '用户分析', icon: markRaw(Users) },
   { id: 'age' as TabType, label: '年龄分析', icon: markRaw(User) },
   { id: 'city' as TabType, label: '城市消费', icon: markRaw(MapPin) },
   { id: 'products' as TabType, label: '商品销售', icon: markRaw(Package) },
@@ -70,7 +68,6 @@ const tabs = [
 
 const componentMap: Record<TabType, any> = {
   trend: markRaw(SalesTrend),
-  users: markRaw(UserDistribution),
   products: markRaw(ProductAnalysis),
   gender: markRaw(GenderAnalysis),
   age: markRaw(AgeAnalysis),

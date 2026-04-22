@@ -13,7 +13,7 @@
 
 ### 数据分析组件（7个）
 - [x] `/src/app/components/SalesTrend.tsx` - 销售趋势分析
-- [x] `/src/app/components/GenderAnalysis.tsx` - 性别分析
+- [x] `/src/app/components/GenderAnalysis.tsx` - 用户分析
 - [x] `/src/app/components/AgeAnalysis.tsx` - 年龄分析
 - [x] `/src/app/components/CityConsumption.tsx` - 城市消费分析
 - [x] `/src/app/components/ProductAnalysis.tsx` - 商品销售分析
@@ -22,9 +22,6 @@
 
 ### AI功能组件
 - [x] `/src/app/components/AIRecommendation.tsx` - AI智能分析
-
-### 用户分布（原有）
-- [x] `/src/app/components/UserDistribution.tsx` - 用户分布分析
 
 ### 数据和工具
 - [x] `/src/app/data/mockData.ts` - 模拟数据（229条订单）
@@ -45,7 +42,7 @@
    - [x] 月度销售趋势图
    - [x] 日销售趋势图
 
-2. [x] 性别分析
+2. [x] 用户分析
    - [x] 男女用户概览卡片
    - [x] 性别消费对比图
    - [x] 品类偏好雷达图
