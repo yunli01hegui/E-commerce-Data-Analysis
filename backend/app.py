@@ -191,12 +191,11 @@ def product_analysis():
             sales=('quantity', 'sum'),
             revenue=('amount', 'sum'),
             orders=('user_id', 'count')
-        ).reset_index().sort_values('revenue', ascending=False).head(15)
-        
+        ).reset_index().sort_values('revenue', ascending=False)
+
         product_ranking['revenue'] = product_ranking['revenue'].astype(float)
         product_ranking['sales'] = product_ranking['sales'].astype(int)
-        product_ranking_list = product_ranking.to_dict('records')
-        
+        product_ranking_list = product_ranking.to_dict('records')        
         # 构建唯一键，解决前端表格渲染 Key 重复问题
         for p in product_ranking_list:
             p['key'] = f"{p['product_name']}-{p['category']}"

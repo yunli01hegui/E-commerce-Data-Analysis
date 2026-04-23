@@ -29,13 +29,13 @@
     <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
       <div class="flex items-center gap-2 mb-6">
         <Package class="w-5 h-5 text-blue-400" />
-        <h3 class="text-xl font-semibold text-white">热销商品 TOP 15</h3>
+        <h3 class="text-xl font-semibold text-white">热销商品</h3>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <div
-          v-for="(product, index) in productRanking"
+          v-for="(product, index) in visibleProductRanking"
           :key="product.key"
-          class="p-4 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
+          class="p-4 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-all duration-300"
         >
           <div class="flex items-start justify-between mb-3">
             <div :class="[
@@ -65,12 +65,36 @@
           </div>
         </div>
       </div>
+
+      <!-- 操作按钮 -->
+      <div v-if="visibleCount < productRanking.length" class="flex items-center justify-center gap-4">
+        <button 
+          @click="showMore"
+          class="flex items-center gap-2 px-8 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-all text-sm font-medium border border-slate-600 active:scale-95"
+        >
+          查看更多 (剩 {{ productRanking.length - visibleCount }})
+        </button>
+        <button 
+          @click="showAll"
+          class="flex items-center gap-2 px-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all text-sm font-medium shadow-lg shadow-blue-900/20 active:scale-95"
+        >
+          显示全部商品
+        </button>
+      </div>
+      <div v-else-if="productRanking.length > 9" class="flex items-center justify-center">
+        <button 
+          @click="visibleCount = 9"
+          class="px-8 py-2 text-slate-500 hover:text-slate-300 text-sm transition-colors border border-transparent hover:border-slate-700 rounded-lg"
+        >
+          收起列表
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { PieChart } from 'echarts/charts';
@@ -91,6 +115,18 @@ use([
 
 const categoryData = computed(() => productAnalysis.categoryData);
 const productRanking = computed(() => productAnalysis.productRanking);
+
+// 商品列表分页控制
+const visibleCount = ref(9);
+const visibleProductRanking = computed(() => productRanking.value.slice(0, visibleCount.value));
+
+const showMore = () => {
+  visibleCount.value += 9;
+};
+
+const showAll = () => {
+  visibleCount.value = productRanking.value.length;
+};
 
 const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899'];
 
