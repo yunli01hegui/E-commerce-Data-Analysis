@@ -136,8 +136,8 @@
         基于全平台销量和收入的顶级爆款排行
       </p>
       
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        <div v-for="(product, index) in popularProducts" :key="product.productId" class="bg-slate-700/50 rounded-lg p-4 hover:bg-slate-700 transition-colors">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+        <div v-for="(product, index) in visiblePopularProducts" :key="product.productId" class="bg-slate-700/50 rounded-lg p-4 hover:bg-slate-700 transition-all duration-300">
           <div class="flex items-start justify-between mb-3">
             <div :class="[
               'w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm',
@@ -161,13 +161,39 @@
               <span class="text-white font-semibold">{{ product.sales }}</span>
             </div>
             <div class="flex items-center justify-between text-sm">
-              <span class="text-slate-400">收入</span>
+              <span class="text-slate-400">总消费额</span>
               <span class="text-green-400 font-semibold">
                 ¥{{ product.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 }) }}
               </span>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="flex flex-col items-center gap-4">
+        <div v-if="visiblePopularCount < popularProducts.length" class="flex items-center justify-center gap-4">
+          <button 
+            @click="showMorePopular"
+            class="flex items-center gap-2 px-8 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-all text-sm font-medium border border-slate-600 active:scale-95"
+          >
+            查看更多 (剩 {{ popularProducts.length - visiblePopularCount }})
+          </button>
+          <button 
+            @click="showAllPopular"
+            class="flex items-center gap-2 px-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all text-sm font-medium shadow-lg shadow-blue-900/20 active:scale-95"
+          >
+            显示全部商品
+          </button>
+        </div>
+        
+        <button 
+          v-if="visiblePopularCount > 8"
+          @click="visiblePopularCount = 8"
+          class="px-8 py-2 text-slate-500 hover:text-slate-300 text-sm transition-colors border border-transparent hover:border-slate-700 rounded-lg"
+        >
+          收起列表
+        </button>
       </div>
     </div>
 
@@ -263,6 +289,18 @@ const popularProducts = computed(() => {
     revenue: p.revenue
   }));
 });
+
+// 热门商品列表控制
+const visiblePopularCount = ref(8);
+const visiblePopularProducts = computed(() => popularProducts.value.slice(0, visiblePopularCount.value));
+
+const showMorePopular = () => {
+  visiblePopularCount.value += 8;
+};
+
+const showAllPopular = () => {
+  visiblePopularCount.value = popularProducts.value.length;
+};
 
 const allAvailableUsers = computed(() => userList.slice(0, 100));
 </script>
