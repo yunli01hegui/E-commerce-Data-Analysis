@@ -83,35 +83,40 @@ export async function fetchAllStats() {
   isLoading.value = true;
   error.value = null;
   try {
-    const [sales, users, products, rfm, gender, age, cities, allUsers, associations] = await Promise.all([
-      apiFetch('/stats/sales-trend'),
-      apiFetch('/stats/user-distribution'),
-      apiFetch('/stats/product-analysis'),
-      apiFetch('/stats/rfm-analysis'),
-      apiFetch('/stats/gender-analysis'),
-      apiFetch('/stats/age-analysis'),
-      apiFetch('/stats/city-consumption'),
-      apiFetch('/users'),
-      apiFetch('/recommendation/association')
-    ]);
+    const endpoints = [
+      { path: '/stats/sales-trend', target: dashboardStats },
+      { path: '/stats/user-distribution', target: userDistribution },
+      { path: '/stats/product-analysis', target: productAnalysis },
+      { path: '/stats/rfm-analysis', target: rfmAnalysis },
+      { path: '/stats/gender-analysis', target: genderAnalysis },
+      { path: '/stats/age-analysis', target: ageAnalysis },
+      { path: '/stats/city-consumption', target: cityConsumption },
+      { path: '/users', target: userList, isArray: true },
+      { path: '/recommendation/association', target: productRecommendation, isKey: 'associationRules' }
+    ];
 
-    // 更新响应式对象
-    Object.assign(dashboardStats, sales);
-    Object.assign(userDistribution, users);
-    Object.assign(productAnalysis, products);
-    Object.assign(rfmAnalysis, rfm);
-    Object.assign(genderAnalysis, gender);
-    Object.assign(ageAnalysis, age);
-    Object.assign(cityConsumption, cities);
-    Object.assign(productRecommendation, { associationRules: associations });
+    const results = await Promise.allSettled(endpoints.map(e => apiFetch(e.path)));
 
-    userList.length = 0;
-    userList.push(...allUsers);
+    results.forEach((result, index) => {
+      const endpoint = endpoints[index];
+      if (result.status === 'fulfilled') {
+        if (endpoint.isArray) {
+          (endpoint.target as any[]).length = 0;
+          (endpoint.target as any[]).push(...result.value);
+        } else if (endpoint.isKey) {
+          Object.assign(endpoint.target, { [endpoint.isKey]: result.value });
+        } else {
+          Object.assign(endpoint.target, result.value);
+        }
+      } else {
+        console.error(`Failed to fetch ${endpoint.path}:`, result.reason);
+      }
+    });
 
-    console.log('Successfully loaded all stats from Flask backend');
+    console.log('Finished loading stats from Flask backend (some may have failed)');
   } catch (err) {
-    console.error('Failed to fetch from backend:', err);
-    error.value = '无法连接到 Python 后端。请确认 MySQL 已启动并运行 "npm run server"';
+    console.error('Critical failure in fetchAllStats:', err);
+    error.value = '无法连接到 Python 后端。请确认服务已启动。';
   } finally {
     isLoading.value = false;
   }
