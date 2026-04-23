@@ -257,7 +257,9 @@ def sales_trend():
         total_orders = int(len(df))
         avg_price = float(total_sales / total_orders) if total_orders > 0 else 0.0
         
-        # 环比增长率计算：对比数据中的最新月份和上一个月
+        # 环比增长率计算 (MoM Growth Rate): 
+        # 逻辑：对比数据中的“最新月份”与“上一个自然月”的销售额。
+        # 公式：((本月销售额 - 上月销售额) / 上月销售额) * 100%
         if not monthly_stats.empty:
             # 按月份排序获取最后一个月作为“本月”
             sorted_stats = monthly_stats.sort_values('month_key')
@@ -265,12 +267,13 @@ def sales_trend():
             curr_month_key = latest_row['month_key']
             curr_sales = float(latest_row['sales'])
             
-            # 计算上个月的 key
+            # 计算上个月的 key (逻辑：获取本月第一天，减去一天即为上月)
             latest_date = pd.to_datetime(curr_month_key + '-01')
             prev_month_date = latest_date - pd.Timedelta(days=1)
             last_month_key = prev_month_date.strftime('%Y-%m')
             
             prev_sales = float(monthly_stats[monthly_stats['month_key'] == last_month_key]['sales'].sum())
+            # 计算百分比增长，若上月无销售额则默认为 0
             growth_rate = float(((curr_sales - prev_sales) / prev_sales * 100)) if prev_sales > 0 else 0.0
         else:
             growth_rate = 0.0
@@ -503,10 +506,13 @@ def rfm_analysis():
         df = get_df()
         if df.empty: return jsonify({'segmentStats': [], 'scatterData': [], 'rfmSegmented': []})
 
-        # 参考日期
-        ref_date = df['purchase_time'].max()
+        # 参考日期：使用当前系统时间，确保“距今天数”反映真实情况
+        ref_date = datetime.now()
         
         # 1. 计算 RFM 基础指标
+        # Recency (R): 客户最近一次购买距今的天数。天数越少，客户越活跃。
+        # Frequency (F): 客户在统计期内的购买总次数。次数越多，忠诚度越高。
+        # Monetary (M): 客户在统计期内的总消费金额。金额越大，贡献度越高。
         rfm = df.groupby(['user_id', 'user_name']).agg(
             recency=('purchase_time', lambda x: (ref_date - x.max()).days),
             frequency=('user_id', 'count'),
@@ -514,6 +520,9 @@ def rfm_analysis():
         ).reset_index()
 
         # 2. 评分逻辑 (1-5分，五分位数)
+        # pd.qcut (Quantile-based discretization): 将数据按照分位数划分为5个区间。
+        # R_score: 距今天数越短分越高 (labels=[5, 4, 3, 2, 1])。
+        # F_score & M_score: 频率和金额越高分越高 (labels=[1, 2, 3, 4, 5])。
         try:
             rfm['R_score'] = pd.qcut(rfm['recency'].rank(method='first'), 5, labels=[5, 4, 3, 2, 1])
             rfm['F_score'] = pd.qcut(rfm['frequency'].rank(method='first'), 5, labels=[1, 2, 3, 4, 5])
@@ -527,9 +536,11 @@ def rfm_analysis():
         rfm['R_score'] = rfm['R_score'].astype(int)
         rfm['F_score'] = rfm['F_score'].astype(int)
         rfm['M_score'] = rfm['M_score'].astype(int)
+        # rfm_score: 综合评分，即 R、F、M 三项评分之和，用于衡量客户的综合价值。
         rfm['rfm_score'] = rfm['R_score'] + rfm['F_score'] + rfm['M_score']
 
-        # 3. 客户分群
+        # 3. 客户分群 (Segmentation Rules)
+        # 根据 R/F/M 各维度的得分高低，将客户划分为 8 个不同的精细化运营群体。
         def segment_user(row):
             r, f, m = row['R_score'], row['F_score'], row['M_score']
             if r >= 4 and f >= 4 and m >= 4: return '重要价值客户', '#ef4444', '高价值核心客户，需重点维护'
@@ -567,17 +578,16 @@ def rfm_analysis():
                 'name': row['user_name']
             })
 
-        # 格式化表格数据以匹配前端字段名
+        # 格式化表格数据以匹配前端字段名，并按综合价值评分 (rfm_score) 降序排列。
         rfm_table = rfm.rename(columns={
             'user_id': 'userId',
             'user_name': 'userName',
             'R_score': 'R',
             'F_score': 'F',
             'M_score': 'M'
-        }).sort_values('rfm_score', ascending=False).head(100)
+        }).sort_values('rfm_score', ascending=False)
 
-        return jsonify({
-            'segmentStats': seg_stats.to_dict('records'),
+        return jsonify({            'segmentStats': seg_stats.to_dict('records'),
             'scatterData': scatter_data,
             'rfmSegmented': rfm_table.to_dict('records')
         })
@@ -611,23 +621,28 @@ def collaborative_filtering(user_id):
     df['user_id'] = df['user_id'].astype(str)
     user_id = str(user_id)
 
-    # 1. 建立用户-品类偏好矩阵（行：用户，列：品类，值：累计金额）
+    # 1. 建立用户-品类偏好矩阵 (User-Item Preference Matrix)
+    # 行表示用户 (User)，列表示品类 (Category)，值表示该用户在该品类上的累计消费金额。
+    # 这种表示法可以将用户的消费行为转化为高维向量，从而进行相似度比较。
     user_item_matrix = df.pivot_table(index='user_id', columns='category', values='amount', aggfunc='sum').fillna(0)
     
     if user_id not in user_item_matrix.index:
         return jsonify([])
 
     # 2. 计算余弦相似度 (Cosine Similarity)
+    # 逻辑：通过计算两个向量夹角的余弦值来衡量用户间的品类偏好相似度。
+    # 余弦值越接近 1，表示两个用户的消费结构越相似。
     user_vector = user_item_matrix.loc[user_id].values.reshape(1, -1)
     similarities = {}
     for other_user in user_item_matrix.index:
         if other_user == user_id: continue
         other_vector = user_item_matrix.loc[other_user].values.reshape(1, -1)
-        # 余弦公式：(A dot B) / (||A|| * ||B||)
+        # 余弦公式：(A · B) / (||A|| * ||B||)
+        # 1e-9 为平滑项，防止分母为零。
         sim = np.dot(user_vector, other_vector.T) / (np.linalg.norm(user_vector) * np.linalg.norm(other_vector) + 1e-9)
         similarities[other_user] = sim[0][0]
 
-    # 3. 提取前 10 位最相似的“邻居”
+    # 3. 提取前 10 位最相似的“邻居” (Top-N Nearest Neighbors)
     top_similar_users = sorted(similarities.items(), key=lambda x: x[1], reverse=True)[:10]
     
     # 4. 推荐过滤：排除已购商品，聚合相似用户喜欢的商品
@@ -647,7 +662,8 @@ def collaborative_filtering(user_id):
                         'buyCount': 0,
                         'score': 0
                     }
-                # 加权推荐分：相似度分值 * 购买次数
+                # 加权推荐分 (Weighted Recommendation Score): 
+                # 推荐分 = Σ (相似度分值 * 该邻居对该商品的购买权重)
                 recommendations[prod_name]['score'] += score
                 recommendations[prod_name]['buyCount'] += 1
 
@@ -676,19 +692,22 @@ def association_rules():
 
         df['year_month'] = df['purchase_time'].dt.to_period('M')
 
-        # 1. 构建月度购物篮集合
+        # 1. 构建月度购物篮集合 (Monthly Basket Analysis)
+        # 逻辑：将同一用户在同一自然月内的所有购买行为视为一个“购物篮”。
+        # 这种方法可以挖掘出用户在特定时间窗口内的跨品类购买规律。
         user_month_cat_groups = df.groupby(['user_id', 'year_month'])['category'].apply(set).tolist()
         
         pairs = {}
         for items in user_month_cat_groups:
             items_list = sorted(list(items))
-            if len(items_list) < 2: continue # 只有购买了两种及以上品类才构成关联
+            if len(items_list) < 2: continue # 只有在一个月中购买了两种及以上品类才构成关联规则的基础
             for i in range(len(items_list)):
                 for j in range(i + 1, len(items_list)):
+                    # 生成品类两两配对，统计其共同出现的频次
                     pair = tuple(sorted([items_list[i], items_list[j]]))
                     pairs[pair] = pairs.get(pair, 0) + 1
         
-        # 2. 如果品类级关联较少，则降级进行商品名级关联分析
+        # 2. 如果品类级关联较少，则降级进行商品名级关联分析 (Fallback to Product-level)
         if not pairs:
             user_month_prod_groups = df.groupby(['user_id', 'year_month'])['product_name'].apply(set).tolist()
             for items in user_month_prod_groups:
@@ -699,12 +718,15 @@ def association_rules():
                         pair = tuple(sorted([items_list[i], items_list[j]]))
                         pairs[pair] = pairs.get(pair, 0) + 1
 
-        # 3. 排序并计算指标
+        # 3. 排序并计算指标 (Support Calculation)
         sorted_pairs = sorted(pairs.items(), key=lambda x: x[1], reverse=True)[:4]
         
         result = []
         total_monthly_baskets = len(user_month_cat_groups)
         for (item1, item2), count in sorted_pairs:
+            # 支持度 (Support): 指该关联对 (A, B) 在所有购物篮中出现的概率。
+            # 公式：(包含 A 和 B 的购物篮数量) / (总购物篮数量)
+            # 支持度越高，说明该组合的关联普遍性越强。
             support = round((count / total_monthly_baskets) * 100, 1)
             result.append({
                 'items': [item1, item2],

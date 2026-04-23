@@ -68,68 +68,144 @@
       </div>
     </div>
 
-    <!-- TOP20 高价值客户 -->
-    <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
-      <div class="flex items-center gap-2 mb-6">
-        <Award class="w-5 h-5 text-yellow-400" />
-        <h3 class="text-xl font-semibold text-white">TOP 20 高价值客户</h3>
+    <!-- RFM 客户价值看板 -->
+    <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 shadow-xl">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div class="flex items-center gap-2">
+          <Award class="w-5 h-5 text-yellow-400" />
+          <h3 class="text-xl font-semibold text-white">RFM 客户价值看板</h3>
+        </div>
+        
+        <!-- 搜索控制 -->
+        <div class="flex items-center bg-slate-700 rounded-lg overflow-hidden border border-slate-600 focus-within:border-blue-500 transition-all">
+          <div class="px-3 py-2 text-slate-400 border-r border-slate-600">
+            <Search class="w-4 h-4" />
+          </div>
+          <input 
+            v-model="searchQuery" 
+            type="text" 
+            placeholder="搜索用户名或ID..." 
+            class="bg-transparent text-white text-sm px-4 py-2 outline-none w-48 md:w-64"
+          />
+          <button v-if="searchQuery" @click="searchQuery = ''" class="px-3 py-2 text-slate-400 hover:text-white transition-colors">
+            <X class="w-4 h-4" />
+          </button>
+        </div>
       </div>
-      <div class="overflow-x-auto">
+
+      <div class="overflow-x-auto rounded-lg border border-slate-700/50">
         <table class="w-full">
           <thead>
-            <tr class="border-b border-slate-700">
-              <th class="text-left py-3 px-4 text-slate-400 font-medium">排名</th>
-              <th class="text-left py-3 px-4 text-slate-400 font-medium">客户ID</th>
-              <th class="text-left py-3 px-4 text-slate-400 font-medium">客户名称</th>
-              <th class="text-left py-3 px-4 text-slate-400 font-medium">客户分群</th>
-              <th class="text-center py-3 px-4 text-slate-400 font-medium">R评分</th>
-              <th class="text-center py-3 px-4 text-slate-400 font-medium">F评分</th>
-              <th class="text-center py-3 px-4 text-slate-400 font-medium">M评分</th>
-              <th class="text-right py-3 px-4 text-slate-400 font-medium">消费总额</th>
-              <th class="text-right py-3 px-4 text-slate-400 font-medium">购买次数</th>
-              <th class="text-right py-3 px-4 text-slate-400 font-medium">距今天数</th>
+            <tr class="bg-slate-700/30 text-slate-300 text-xs font-semibold uppercase tracking-wider">
+              <th class="text-left py-4 px-4">排名</th>
+              <th class="text-left py-4 px-4">客户ID</th>
+              <th class="text-left py-4 px-4">客户名称</th>
+              <th class="text-left py-4 px-4">客户分群</th>
+              <th class="text-center py-4 px-4">R评分</th>
+              <th class="text-center py-4 px-4">F评分</th>
+              <th class="text-center py-4 px-4">M评分</th>
+              <th class="text-right py-4 px-4">消费总额</th>
+              <th class="text-right py-4 px-4">购买次数</th>
+              <th class="text-right py-4 px-4">距今天数</th>
             </tr>
           </thead>
-          <tbody>
-            <tr v-for="(user, index) in rfmSegmented.slice(0, 20)" :key="user.userId" class="border-b border-slate-700/50 hover:bg-slate-700/30">
-              <td class="py-3 px-4">
+          <tbody class="divide-y divide-slate-700/50">
+            <tr v-if="paginatedRFM.length === 0" class="hover:bg-slate-700/20 transition-colors">
+              <td colspan="10" class="py-12 text-center text-slate-500">未找到匹配的客户数据</td>
+            </tr>
+            <tr v-for="(user, idx) in paginatedRFM" :key="user.userId" class="hover:bg-slate-700/40 transition-all duration-200 group">
+              <td class="py-4 px-4">
                 <div :class="[
-                  'w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm',
-                  index === 0 ? 'bg-yellow-500 text-slate-900' :
-                  index === 1 ? 'bg-slate-400 text-slate-900' :
-                  index === 2 ? 'bg-orange-600 text-white' :
-                  'bg-slate-600 text-slate-300'
+                  'w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-transform group-hover:scale-110',
+                  (startIndex + idx) === 0 ? 'bg-yellow-500 text-slate-900 shadow-lg shadow-yellow-900/20' :
+                  (startIndex + idx) === 1 ? 'bg-slate-300 text-slate-900' :
+                  (startIndex + idx) === 2 ? 'bg-orange-600 text-white' :
+                  'bg-slate-700 text-slate-400 border border-slate-600'
                 ]">
-                  {{ index + 1 }}
+                  {{ startIndex + idx + 1 }}
                 </div>
               </td>
-              <td class="py-3 px-4 text-slate-300 font-mono text-sm">{{ user.userId }}</td>
-              <td class="py-3 px-4 text-white">{{ user.userName }}</td>
-              <td class="py-3 px-4">
+              <td class="py-4 px-4 text-slate-300 font-mono text-sm">{{ user.userId }}</td>
+              <td class="py-4 px-4 text-white font-medium">{{ user.userName }}</td>
+              <td class="py-4 px-4">
                 <span 
-                  class="px-2 py-1 rounded text-xs font-medium"
-                  :style="{ backgroundColor: `${user.segmentColor}20`, color: user.segmentColor }"
+                  class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                  :style="{ backgroundColor: `${user.segmentColor}20`, color: user.segmentColor, border: `1px solid ${user.segmentColor}40` }"
                 >
                   {{ user.segment }}
                 </span>
               </td>
-              <td class="py-3 px-4 text-center">
-                <span class="text-blue-400 font-semibold">{{ user.R }}</span>
+              <td class="py-4 px-4 text-center">
+                <div class="text-blue-400 font-bold bg-blue-400/10 rounded py-1">{{ user.R }}</div>
               </td>
-              <td class="py-3 px-4 text-center">
-                <span class="text-purple-400 font-semibold">{{ user.F }}</span>
+              <td class="py-4 px-4 text-center">
+                <div class="text-purple-400 font-bold bg-purple-400/10 rounded py-1">{{ user.F }}</div>
               </td>
-              <td class="py-3 px-4 text-center">
-                <span class="text-green-400 font-semibold">{{ user.M }}</span>
+              <td class="py-4 px-4 text-center">
+                <div class="text-green-400 font-bold bg-green-400/10 rounded py-1">{{ user.M }}</div>
               </td>
-              <td class="py-3 px-4 text-right text-green-400 font-semibold">
+              <td class="py-4 px-4 text-right text-green-400 font-bold">
                 ¥{{ user.monetary.toLocaleString() }}
               </td>
-              <td class="py-3 px-4 text-right text-white">{{ user.frequency }}</td>
-              <td class="py-3 px-4 text-right text-slate-400">{{ user.recency }}天</td>
+              <td class="py-4 px-4 text-right text-white font-semibold">{{ user.frequency }}</td>
+              <td class="py-4 px-4 text-right text-slate-400">{{ user.recency }}天</td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- 分页控制栏 (复刻数据中心风格) -->
+      <div class="mt-6 pt-6 border-t border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="text-sm text-slate-400">
+          显示 <span class="text-white font-medium">{{ filteredRFM.length > 0 ? startIndex + 1 : 0 }}</span> 到 <span class="text-white font-medium">{{ endIndex }}</span> 条，共 <span class="text-white font-medium">{{ filteredRFM.length }}</span> 条记录
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <button 
+            @click="prevPage" 
+            :disabled="currentPage === 1"
+            class="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all border border-slate-600"
+          >
+            <ChevronLeft class="w-5 h-5" />
+          </button>
+          
+          <div class="hidden sm:flex items-center gap-1">
+            <button 
+              v-for="p in visiblePages" 
+              :key="p" 
+              @click="goToPage(p)"
+              class="w-10 h-10 rounded-lg text-sm font-bold transition-all"
+              :class="currentPage === p ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-700 hover:text-white border border-transparent hover:border-slate-600'"
+            >
+              {{ p }}
+            </button>
+          </div>
+
+          <button 
+            @click="nextPage" 
+            :disabled="currentPage === totalPages"
+            class="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all border border-slate-600"
+          >
+            <ChevronRight class="w-5 h-5" />
+          </button>
+        </div>
+
+        <!-- 跳转控制 -->
+        <div class="flex items-center gap-2 border-l border-slate-700 pl-4">
+          <span class="text-xs text-slate-500">跳转至</span>
+          <div class="flex items-center bg-slate-700 rounded-lg overflow-hidden border border-slate-600 focus-within:border-blue-500 transition-all">
+            <input 
+              v-model="jumpPageNum" 
+              type="number" 
+              class="bg-transparent text-white text-xs px-2 py-1.5 outline-none w-12 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              @keyup.enter="handleJumpPage"
+            />
+            <button @click="handleJumpPage" class="px-2 py-1.5 bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+              <ArrowRight class="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <span class="text-xs text-slate-500">页</span>
+        </div>
       </div>
     </div>
 
@@ -163,7 +239,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { ScatterChart } from 'echarts/charts';
@@ -173,7 +249,10 @@ import {
   GridComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
-import { Users, Clock, ShoppingCart, DollarSign, Award, Sparkles } from 'lucide-vue-next';
+import { 
+  Users, Clock, ShoppingCart, DollarSign, Award, Sparkles, 
+  Search, X, ChevronLeft, ChevronRight, ArrowRight 
+} from 'lucide-vue-next';
 import { rfmAnalysis } from '../data/mockData';
 
 use([
@@ -184,9 +263,61 @@ use([
   GridComponent,
 ]);
 
-// 使用从后端预计算的响应式数据
+// 1. 状态管理
+const searchQuery = ref('');
+const currentPage = ref(1);
+const pageSize = 10;
+const jumpPageNum = ref<number | string>('');
+
+// 2. 数据处理
 const rfmSegmented = computed(() => rfmAnalysis.rfmSegmented);
 const segmentStats = computed(() => rfmAnalysis.segmentStats);
+
+// 过滤逻辑
+const filteredRFM = computed(() => {
+  const query = searchQuery.value.toLowerCase().trim();
+  if (!query) return rfmSegmented.value;
+  
+  return rfmSegmented.value.filter((user: any) => 
+    user.userName.toLowerCase().includes(query) || 
+    String(user.userId).toLowerCase().includes(query)
+  );
+});
+
+// 分页逻辑
+const paginatedRFM = computed(() => {
+  const start = (currentPage.value - 1) * pageSize;
+  return filteredRFM.value.slice(start, start + pageSize);
+});
+
+// 计算分页元数据
+const totalPages = computed(() => Math.ceil(filteredRFM.value.length / pageSize));
+const startIndex = computed(() => (currentPage.value - 1) * pageSize);
+const endIndex = computed(() => Math.min(startIndex.value + pageSize, filteredRFM.value.length));
+
+const visiblePages = computed(() => {
+  const range = [];
+  const start = Math.max(1, currentPage.value - 2);
+  const end = Math.min(totalPages.value, start + 4);
+  for (let i = start; i <= end; i++) range.push(i);
+  return range;
+});
+
+// 3. 交互方法
+const prevPage = () => { if (currentPage.value > 1) currentPage.value--; };
+const nextPage = () => { if (currentPage.value < totalPages.value) currentPage.value++; };
+const goToPage = (p: number) => { currentPage.value = p; };
+const handleJumpPage = () => {
+  const p = Number(jumpPageNum.value);
+  if (p >= 1 && p <= totalPages.value) {
+    currentPage.value = p;
+  }
+};
+
+// 搜索时重置页码
+watch(searchQuery, () => {
+  currentPage.value = 1;
+});
 
 const segmentArray = computed(() => {
   return Object.values(segmentStats.value).sort((a: any, b: any) => (b.avgRFM || 0) - (a.avgRFM || 0));
@@ -246,7 +377,6 @@ const strategyMap: Record<string, string[]> = {
   ]
 };
 
-// 动态生成策略列表，确保与后端返回的分群对应
 const activeStrategies = computed(() => {
   return segmentArray.value.map(seg => ({
     segment: seg.segment,
