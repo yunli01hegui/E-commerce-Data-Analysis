@@ -18,9 +18,9 @@
       </div>
     </div>
 
-    <!-- 日销售趋势（最近30天） -->
+    <!-- 日销售趋势 -->
     <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
-      <h3 class="text-xl font-semibold text-white mb-6">日销售趋势（最近30天）</h3>
+      <h3 class="text-xl font-semibold text-white mb-6">日销售趋势</h3>
       <div class="h-[300px]">
         <v-chart class="h-full w-full" :option="dailyOption" autoresize />
       </div>

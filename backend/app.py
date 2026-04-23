@@ -244,13 +244,13 @@ def sales_trend():
                 'orders': orders_val,
                 'avgAmount': float(sales_val / orders_val) if orders_val > 0 else 0.0
             })
-        # 2. 每日趋势：观察最近 30 个自然日的波动
+        # 2. 每日趋势：显示数据库中所有有数据的日期，按日期排序
         daily = df.groupby(df['purchase_time'].dt.date).agg(
             sales=('amount', 'sum'),
             orders=('user_id', 'count')
-        ).reset_index().sort_values('purchase_time', ascending=False).head(30).sort_values('purchase_time')
+        ).sort_index().reset_index()
         
-        daily['date'] = daily['purchase_time'].apply(lambda x: x.strftime('%m/%d'))
+        daily['date'] = daily['purchase_time'].apply(lambda x: x.strftime('%Y-%m-%d'))
         daily_data = daily[['date', 'sales', 'orders']].to_dict('records')
 
         # 3. 计算全局 KPI 指标
