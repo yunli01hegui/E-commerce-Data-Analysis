@@ -63,9 +63,9 @@ const stats = computed(() => {
   const growthRate = kpi.growthRate || 0;
 
   return [
-    { label: '总销售额', value: `¥${(kpi.totalSales || 0).toLocaleString()}`, colorClass: 'text-white' },
+    { label: '总销售额', value: `¥${(kpi.totalSales || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, colorClass: 'text-white' },
     { label: '订单总量', value: (kpi.totalOrders || 0).toLocaleString(), colorClass: 'text-white' },
-    { label: '平均客单价', value: `¥${(kpi.avgPrice || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, colorClass: 'text-white' },
+    { label: '平均客单价', value: `¥${(kpi.avgPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, colorClass: 'text-white' },
     { 
       label: '月度增长率', 
       value: `${growthRate >= 0 ? '+' : ''}${growthRate.toFixed(1)}%`, 
@@ -81,6 +81,18 @@ const monthlyOption = computed(() => ({
     backgroundColor: '#1e293b',
     borderColor: '#334155',
     textStyle: { color: '#fff' },
+    formatter: (params: any) => {
+      let res = `<div style="font-weight:bold;margin-bottom:5px;border-bottom:1px solid #444;padding-bottom:3px;">${params[0].name}</div>`;
+      params.forEach((item: any) => {
+        const val = item.value;
+        const formattedVal = item.seriesName === '销售额' ? val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : val.toLocaleString();
+        res += `<div style="display:flex;justify-content:space-between;gap:20px;">
+                  <span>${item.marker}${item.seriesName}</span>
+                  <span style="font-weight:bold;">${item.seriesName === '销售额' ? '¥' : ''}${formattedVal}</span>
+                </div>`;
+      });
+      return res;
+    }
   },
   legend: {
     data: ['销售额', '订单数'],
@@ -141,6 +153,18 @@ const dailyOption = computed(() => ({
     backgroundColor: '#1e293b',
     borderColor: '#334155',
     textStyle: { color: '#fff' },
+    formatter: (params: any) => {
+      let res = `<div style="font-weight:bold;margin-bottom:5px;border-bottom:1px solid #444;padding-bottom:3px;">${params[0].name}</div>`;
+      params.forEach((item: any) => {
+        const val = item.value;
+        const formattedVal = val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        res += `<div style="display:flex;justify-content:space-between;gap:20px;">
+                  <span>${item.marker}${item.seriesName}</span>
+                  <span style="font-weight:bold;">¥${formattedVal}</span>
+                </div>`;
+      });
+      return res;
+    }
   },
   grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
   xAxis: {
