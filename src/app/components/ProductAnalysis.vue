@@ -67,22 +67,24 @@
       </div>
 
       <!-- 操作按钮 -->
-      <div v-if="visibleCount < productRanking.length" class="flex items-center justify-center gap-4">
+      <div class="flex flex-col items-center gap-4">
+        <div v-if="visibleCount < productRanking.length" class="flex items-center justify-center gap-4">
+          <button 
+            @click="showMore"
+            class="flex items-center gap-2 px-8 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-all text-sm font-medium border border-slate-600 active:scale-95"
+          >
+            查看更多 (剩 {{ productRanking.length - visibleCount }})
+          </button>
+          <button 
+            @click="showAll"
+            class="flex items-center gap-2 px-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all text-sm font-medium shadow-lg shadow-blue-900/20 active:scale-95"
+          >
+            显示全部商品
+          </button>
+        </div>
+        
         <button 
-          @click="showMore"
-          class="flex items-center gap-2 px-8 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-all text-sm font-medium border border-slate-600 active:scale-95"
-        >
-          查看更多 (剩 {{ productRanking.length - visibleCount }})
-        </button>
-        <button 
-          @click="showAll"
-          class="flex items-center gap-2 px-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all text-sm font-medium shadow-lg shadow-blue-900/20 active:scale-95"
-        >
-          显示全部商品
-        </button>
-      </div>
-      <div v-else-if="productRanking.length > 9" class="flex items-center justify-center">
-        <button 
+          v-if="visibleCount > 9"
           @click="visibleCount = 9"
           class="px-8 py-2 text-slate-500 hover:text-slate-300 text-sm transition-colors border border-transparent hover:border-slate-700 rounded-lg"
         >
