@@ -271,30 +271,24 @@ const ageCategoryOption = computed(() => {
   };
 });
 
-const insights = [
-  {
-    title: '核心消费群体',
-    content: '26-35岁用户占比最高，是平台的主力消费群体，偏好电子产品和时尚服装。',
-    icon: Users,
-    bgClass: 'bg-blue-500/10',
-    borderClass: 'border-blue-500/20',
-    iconClass: 'text-blue-400',
-  },
-  {
-    title: '增长潜力',
-    content: '18-25岁年轻群体购买频次高，是未来重点培育对象，可通过社交营销提升转化。',
-    icon: TrendingUp,
-    bgClass: 'bg-purple-500/10',
-    borderClass: 'border-purple-500/20',
-    iconClass: 'text-purple-400',
-  },
-  {
-    title: '高价值用户',
-    content: '36-45岁用户客单价最高，购买力强，适合推荐高端商品和会员服务。',
-    icon: DollarSign,
-    bgClass: 'bg-green-500/10',
-    borderClass: 'border-green-500/20',
-    iconClass: 'text-green-400',
-  },
-];
+const insights = computed(() => {
+  const data = ageAnalysis.insights || [];
+  const iconMap: any = {
+    core: { icon: Users, bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-400' },
+    potential: { icon: TrendingUp, bg: 'bg-purple-500/10', border: 'border-purple-500/20', text: 'text-purple-400' },
+    high_value: { icon: DollarSign, bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400' }
+  };
+
+  return data.map((item: any) => {
+    const style = iconMap[item.type] || iconMap.core;
+    return {
+      title: item.title,
+      content: item.content,
+      icon: style.icon,
+      bgClass: style.bg,
+      borderClass: style.border,
+      iconClass: style.text
+    };
+  });
+});
 </script>

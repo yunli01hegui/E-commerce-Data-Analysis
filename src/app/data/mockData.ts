@@ -36,7 +36,8 @@ export const genderAnalysis = reactive({
 export const ageAnalysis = reactive({
   ageRangeStats: [] as any[],
   ageDistribution: [] as any[],
-  categoryByAge: [] as any[]
+  categoryByAge: [] as any[],
+  insights: [] as any[]
 });
 
 export const cityConsumption = reactive({

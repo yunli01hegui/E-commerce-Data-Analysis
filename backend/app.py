@@ -419,10 +419,38 @@ def age_analysis():
                 item[cat] = float(val)
             cat_by_age_list.append(item)
 
+        # 4. 自动生成业务洞察 (Insights)
+        insights = []
+        if not range_stats.empty:
+            # 核心消费群体：总消费最高的
+            core_row = range_stats.loc[range_stats['totalAmount'].idxmax()]
+            insights.append({
+                'title': '核心消费群体',
+                'content': f"{core_row['age_range']}用户总消费最高，是平台的主力消费群体，最偏好{core_row['topCategory']}。",
+                'type': 'core'
+            })
+            
+            # 增长潜力：18-25岁或用户数最多的
+            potential_row = range_stats.loc[range_stats['count'].idxmax()]
+            insights.append({
+                'title': '增长潜力',
+                'content': f"{potential_row['age_range']}群体用户基数大，购买频次活跃，是未来重点培育对象。",
+                'type': 'potential'
+            })
+            
+            # 高价值用户：客单价最高的
+            high_value_row = range_stats.loc[range_stats['avgAmount'].idxmax()]
+            insights.append({
+                'title': '高价值用户',
+                'content': f"{high_value_row['age_range']}用户平均客单价(¥{high_value_row['avgAmount']:.0f})最高，购买力强，适合高端推荐。",
+                'type': 'high_value'
+            })
+
         return jsonify({
             'ageRangeStats': range_stats_list,
             'ageDistribution': age_dist.to_dict('records'),
-            'categoryByAge': cat_by_age_list
+            'categoryByAge': cat_by_age_list,
+            'insights': insights
         })
     except Exception as e:
         print(f"Error in age_analysis: {e}")
@@ -980,6 +1008,163 @@ def clear_all_orders():
         return jsonify({'message': '数据库已清空'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# -----------------------------------------------------------------
+# AI 逻辑配置 (DeepSeek)
+# -----------------------------------------------------------------
+DEEPSEEK_API_KEY = 'sk-6418bb3f49d14047bc5534d07ddc9593'
+DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
+
+def call_deepseek_ai(prompt):
+    """调用 DeepSeek API 的通用函数"""
+    if not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY == 'YOUR_DEEPSEEK_API_KEY_HERE':
+        print("Error: DEEPSEEK_API_KEY is not configured.")
+        return None
+        
+    import requests
+    import json
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+    }
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": "你是一位专业的电商数据分析师。请生成完整、结构严密的 Markdown 报告。确保报告内容详实且必须有完整的结尾。"},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 4096  # 增加 token 限制，防止长报告截断
+    }
+    
+    try:
+        print(f"Sending request to DeepSeek API...")
+        response = requests.post(DEEPSEEK_API_URL, json=payload, headers=headers, timeout=60)
+        print(f"DeepSeek API Response Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result['choices'][0]['message']['content']
+        else:
+            print(f"DeepSeek API Error Response: {response.text}")
+            return None
+    except Exception as e:
+        print(f"DeepSeek API Network Error: {e}")
+        return None
+
+@app.route('/api/ai/analysis-report/<report_type>', methods=['GET'])
+def get_ai_custom_report(report_type):
+    """
+    根据类型生成对应的 AI 深度报告
+    report_type: 'analysis' | 'behavior' | 'recommendation'
+    """
+    try:
+        df = get_df()
+        if df.empty: return jsonify({'report': '暂无订单数据，无法生成报告。'})
+
+        # 核心指标计算
+        total_sales = float(df['amount'].sum())
+        total_orders = int(len(df))
+        avg_price = total_sales / total_orders if total_orders > 0 else 0
+        top_cats = df.groupby('category')['amount'].sum().nlargest(5).to_dict()
+        gender_dist = df['gender'].value_counts().to_dict()
+        top_city = df['city'].value_counts().idxmax()
+        top_products = df.groupby('product_name')['amount'].sum().nlargest(10).index.tolist()
+
+        if report_type == 'analysis':
+            prompt = f"""
+            你是一位资深首席数据官(CDO)。请基于以下全站真实交易数据生成一份深度《全链路商业增长分析报告》。
+            
+            [核心业绩摘要]
+            - 平台总GMV: ¥{total_sales:,.2f}
+            - 订单总量: {total_orders} 笔 (平均客单价: ¥{avg_price:,.2f})
+            - 地区表现: {top_city} 贡献度最高
+            - 品类排行: {top_cats}
+            - 流量爆款: {', '.join(top_products[:5])}
+            - 用户画像: {gender_dist}
+
+            [报告输出规范]
+            # 电商数据分析报告
+            ## 一、总体业绩评估
+            结合 GMV 和客单价分析当前的营收结构。请推断目前的市场增长阶段（如：高频低额、高端低频等）并给出理由。
+            ## 二、用户画像多维解析
+            分析性别构成 ({gender_dist}) 与地域分布 ({top_city}) 的关联性。从数据中提取用户典型的“消费标签”。
+            ## 三、品类趋势与毛利拉动
+            深度解析核心品类 {list(top_cats.keys())[0]} 的市场地位，并分析 {top_products[0]} 等爆款商品对长尾商品的带动作用。
+            ## 四、全链路增长建议
+            针对数据暴露的问题，给出关于“精准获客”、“复购提升”、“品类扩张”的3条具备可操作性的战略建议。
+
+            要求：语言严谨、商业术语准确，深度解读数据背后的“为什么”，而不仅仅是描述“是什么”。用Markdown格式输出。
+            """
+        elif report_type == 'behavior':
+            peak_hours = df['purchase_time'].dt.hour.value_counts().head(3).index.tolist()
+            repeat_buy_count = df.groupby('user_id').size()
+            repeat_rate = (repeat_buy_count > 1).sum() / len(repeat_buy_count)
+            prompt = f"""
+            你是一位资深行为科学家和用户增长专家。请生成一份《用户消费行为与决策模型分析报告》。
+            
+            [用户行为轨迹数据]
+            - 客单价水平: ¥{avg_price:,.2f}
+            - 忠诚度指标: 估算复购率 {repeat_rate:.1%}
+            - 下单时段特征: 高峰集中在 {peak_hours} 点
+            - 用户基本属性: {gender_dist} / 核心城市 {top_city}
+
+            [分析要求]
+            # 用户行为深度分析报告
+            ## 一、价值矩阵分析
+            利用 RFM 逻辑（基于复购率 {repeat_rate:.1%} 和客单价）分析用户的生命周期阶段。判断目前用户是属于“价格敏感型”还是“品质驱动型”。
+            ## 二、消费决策路径与时效性
+            分析 {peak_hours} 点这一购物高峰背后的心理动机。针对该时段的瞬时转化，应采取何种“心理助推(Nudge)”策略？
+            ## 三、品类偏好与交叉购买潜能
+            基于主消费品类分析其与其他长尾品类的关联性，寻找提升“客单件数(IPT)”的突破口。
+            ## 四、私域留存与增长引擎
+            如何利用现有行为数据设计一套提升复购的闭环方案？请给出具体的消息触达时机和权益设计。
+
+            要求：视角犀利，结合消费心理学进行深度剖析。用Markdown格式输出。
+            """
+        else: # recommendation
+            prompt = f"""
+            你是一位顶级 AI 算法架构师和推荐引擎专家。请基于以下业务数据为本项目撰写《AI 智能推荐系统迭代与架构方案》。
+            
+            [业务特征画像]
+            - 主攻品类: {', '.join(top_cats.keys())}
+            - 地理热力点: {top_city}
+            - 交易密度: {total_orders} 笔
+
+            [方案大纲]
+            # 智能推荐系统优化方案
+            ## 一、现有推荐算法效能评估
+            分析当前品类集中度（{list(top_cats.keys())[0]} 为主）对算法“多样性”和“惊喜度”带来的挑战。
+            ## 二、特征工程与模型增强
+            说明如何将“性别 ({gender_dist})”、“地域权重 ({top_city})”和“下单时序”转化为深度学习模型的输入特征，以提升点击率 (CTR)。
+            ## 三、冷启动与长尾分发策略
+            针对未上榜的新品和长尾商品，提出具体的流量分发机制（如：探索与开发机制 E&E）。
+            ## 四、算法迭代路线图
+            请从“基于协同过滤的基础模型”到“基于图神经网络的复杂模型”给出三个阶段的演进方案，并预测每个阶段对转化率 (CVR) 的提升空间。
+
+            要求：技术术语准确（如：Embedding, Rank, Recall 等），逻辑严密。用Markdown格式输出。
+            """
+
+        # 3. 获取 AI 结果
+        report_content = call_deepseek_ai(prompt)
+        
+        # 严格校验：如果没有 AI 返回内容，则提示错误，不使用本地模拟数据
+        if not report_content:
+            return jsonify({
+                'error': 'AI 报告生成失败',
+                'message': '检测到未配置有效的 DEEPSEEK_API_KEY 或 API 调用频率受限。请在后端 app.py 中配置正确的 API Key 后重试。'
+            }), 403
+            
+        return jsonify({'report': report_content})
+    except Exception as e:
+        print(f"Report Error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/ai/analysis-report', methods=['GET'])
+def get_ai_analysis_report_legacy():
+    # 兼容旧版调用，默认返回全站分析
+    return get_ai_custom_report('analysis')
 
 # =================================================================
 # 主程序启动
