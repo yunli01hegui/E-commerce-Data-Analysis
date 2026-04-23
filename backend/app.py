@@ -547,10 +547,11 @@ def rfm_analysis():
         # 4. 统计分群数据
         seg_stats = rfm.groupby(['segment', 'segmentColor', 'desc']).agg(
             count=('user_id', 'count'),
-            totalAmount=('monetary', 'sum')
+            totalAmount=('monetary', 'sum'),
+            avgRFM=('rfm_score', 'mean')
         ).reset_index().sort_values('totalAmount', ascending=False)
         seg_stats['totalAmount'] = seg_stats['totalAmount'].astype(float)
-        
+        seg_stats['avgRFM'] = seg_stats['avgRFM'].round(1)        
         # 重命名列以匹配前端
         seg_stats = seg_stats.rename(columns={'segmentColor': 'color'})
 

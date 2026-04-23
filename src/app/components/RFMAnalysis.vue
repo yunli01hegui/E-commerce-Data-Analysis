@@ -35,6 +35,10 @@
           <p class="text-slate-400 text-xs mb-3">{{ seg.desc }}</p>
           <div class="space-y-2">
             <div class="flex items-center justify-between text-sm">
+              <span class="text-slate-400">RFM得分</span>
+              <span class="text-white font-bold">{{ seg.avgRFM || '0.0' }}</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
               <span class="text-slate-400">客户数</span>
               <span class="text-white font-semibold">{{ seg.count }}</span>
             </div>
