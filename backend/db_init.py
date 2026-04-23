@@ -120,16 +120,29 @@ def ingest_csv_to_mysql():
 
     # 5. 物理入库同步
     # 使用事务块确保操作的原子性
-    with engine.begin() as conn:
-        print("正在同步至 MySQL 数据库 (Replace 模式)...")
-        # if_exists='replace' 会自动删除旧表并根据 DataFrame 结构创建新表
-        df.to_sql('orders', con=conn, if_exists='replace', index=False)
+    try:
+        with engine.begin() as conn:
+            # 检查表是否存在
+            result = conn.execute(text("SHOW TABLES LIKE 'orders'"))
+            table_exists = result.fetchone() is not None
+            
+            if not table_exists:
+                print("正在初始化 MySQL 数据库 (初始化模式)...")
+                # 如果表不存在，使用 replace 创建新表
+                df.to_sql('orders', con=conn, if_exists='replace', index=False)
+                # 关键操作：在同步后的表中重新添加自增主键 ID 字段，作为 CRUD 操作的唯一标识
+                print("正在创建自增主键 ID 索引...")
+                conn.execute(text("ALTER TABLE orders ADD COLUMN id INT AUTO_INCREMENT PRIMARY KEY FIRST"))
+            else:
+                print("正在同步至 MySQL 数据库 (追加模式)...")
+                # 如果表已存在，使用 append 追加数据
+                # 注意：由于 to_sql('append') 不支持添加列，所以我们假设表结构已就绪
+                df.to_sql('orders', con=conn, if_exists='append', index=False)
         
-        # 关键操作：在同步后的表中重新添加自增主键 ID 字段，作为 CRUD 操作的唯一标识
-        print("正在重建自增主键 ID 索引...")
-        conn.execute(text("ALTER TABLE orders ADD COLUMN id INT AUTO_INCREMENT PRIMARY KEY FIRST"))
-    
-    print("✨ 数据同步成功！系统已就绪。")
+        print("✨ 数据同步成功！系统已就绪。")
+    except Exception as e:
+        print(f"入库失败: {e}")
+        raise e
 
 if __name__ == '__main__':
     # 程序执行入口
