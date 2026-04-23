@@ -258,18 +258,23 @@ def sales_trend():
         total_orders = int(len(df))
         avg_price = float(total_sales / total_orders) if total_orders > 0 else 0.0
         
-        # 环比增长率计算：对比本月和上月
-        # 使用 YYYY-MM 格式匹配之前的 month_key 分组
-        now = datetime.now()
-        curr_month_key = now.strftime('%Y-%m')
-        last_month_date = (now.replace(day=1) - pd.Timedelta(days=1))
-        last_month_key = last_month_date.strftime('%Y-%m')
-        
-        # 从统计结果中安全获取销售额
-        curr_sales = float(monthly_stats[monthly_stats['month_key'] == curr_month_key]['sales'].sum())
-        prev_sales = float(monthly_stats[monthly_stats['month_key'] == last_month_key]['sales'].sum())
-        
-        growth_rate = float(((curr_sales - prev_sales) / prev_sales * 100)) if prev_sales > 0 else 0.0
+        # 环比增长率计算：对比数据中的最新月份和上一个月
+        if not monthly_stats.empty:
+            # 按月份排序获取最后一个月作为“本月”
+            sorted_stats = monthly_stats.sort_values('month_key')
+            latest_row = sorted_stats.iloc[-1]
+            curr_month_key = latest_row['month_key']
+            curr_sales = float(latest_row['sales'])
+            
+            # 计算上个月的 key
+            latest_date = pd.to_datetime(curr_month_key + '-01')
+            prev_month_date = latest_date - pd.Timedelta(days=1)
+            last_month_key = prev_month_date.strftime('%Y-%m')
+            
+            prev_sales = float(monthly_stats[monthly_stats['month_key'] == last_month_key]['sales'].sum())
+            growth_rate = float(((curr_sales - prev_sales) / prev_sales * 100)) if prev_sales > 0 else 0.0
+        else:
+            growth_rate = 0.0
 
         return jsonify({
             'monthlyData': monthly_data,
