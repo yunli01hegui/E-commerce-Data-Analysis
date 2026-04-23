@@ -8,6 +8,7 @@ from datetime import datetime
 import os
 import sys
 import importlib
+import json
 
 # =================================================================
 # 后端程序入口文件
@@ -1035,7 +1036,7 @@ def call_deepseek_ai(prompt):
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.7,
-        "max_tokens": 4096  # 增加 token 限制，防止长报告截断
+        "max_tokens": 5000  # 增加 token 限制，防止长报告截断
     }
     
     try:
@@ -1053,6 +1054,64 @@ def call_deepseek_ai(prompt):
         print(f"DeepSeek API Network Error: {e}")
         return None
 
+# -----------------------------------------------------------------
+# 数据版本与 AI 缓存管理
+# -----------------------------------------------------------------
+CACHE_FILE = os.path.join(os.path.dirname(__file__), 'ai_cache.json')
+
+def get_db_version():
+    """获取当前数据库的实时全内容校验和（检测全表任何字段的细微修改）"""
+    try:
+        with engine.connect() as conn:
+            # CHECKSUM TABLE 是 MySQL 的原生命令，它会对表中所有行和列的数据计算一个 CRC 校验值
+            # 哪怕只是修改了用户姓名的一个字或年龄的一个数字，该值都会立即改变
+            res = conn.execute(text("CHECKSUM TABLE orders")).fetchone()
+            # res[0] 是表名，res[1] 是 Checksum 数值
+            return str(res[1])
+    except Exception as e:
+        # 如果由于权限或环境问题导致 Checksum 失败，使用多维度组合指纹作为兜底
+        print(f"Checksum detection failed: {e}, using fallback fingerprint.")
+        try:
+            with engine.connect() as conn:
+                # 统计记录数、最大ID、金额总和、年龄总和（涵盖了数值变动）
+                res = conn.execute(text("SELECT COUNT(*), MAX(id), SUM(amount), SUM(age) FROM orders")).fetchone()
+                return f"{res[0]}_{res[1]}_{res[2]}_{res[3]}"
+        except:
+            return str(datetime.now().timestamp())
+
+def get_cached_report(report_type, current_version):
+    """从本地 JSON 文件读取缓存的报告"""
+    if not os.path.exists(CACHE_FILE):
+        return None
+    try:
+        with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+            cache = json.load(f)
+            entry = cache.get(report_type)
+            if entry and entry.get('version') == current_version:
+                return entry.get('content')
+    except:
+        pass
+    return None
+
+def save_report_to_cache(report_type, content, version):
+    """将生成的报告存入本地 JSON 缓存"""
+    cache = {}
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                cache = json.load(f)
+        except:
+            pass
+    
+    cache[report_type] = {
+        'content': content,
+        'version': version,
+        'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(cache, f, ensure_ascii=False, indent=2)
+
 @app.route('/api/ai/analysis-report/<report_type>', methods=['GET'])
 def get_ai_custom_report(report_type):
     """
@@ -1060,6 +1119,26 @@ def get_ai_custom_report(report_type):
     report_type: 'analysis' | 'behavior' | 'recommendation'
     """
     try:
+        current_version = get_db_version()
+        
+        # 1. 优先尝试从缓存获取
+        cached_entry = None
+        if os.path.exists(CACHE_FILE):
+            try:
+                with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                    cache = json.load(f)
+                    cached_entry = cache.get(report_type)
+            except:
+                pass
+                
+        if cached_entry and cached_entry.get('version') == current_version:
+            print(f"Cache Hit for {report_type}!")
+            return jsonify({
+                'report': cached_entry.get('content'), 
+                'cached': True,
+                'updated_at': cached_entry.get('updated_at')
+            })
+
         df = get_df()
         if df.empty: return jsonify({'report': '暂无订单数据，无法生成报告。'})
 
@@ -1074,6 +1153,8 @@ def get_ai_custom_report(report_type):
 
         if report_type == 'analysis':
             prompt = f"""
+            ### 强制要求：严禁在报告正文中出现任何日期、年份、时间或“报告日期：XXXX”字样！ ###
+            
             你是一位资深首席数据官(CDO)。请基于以下全站真实交易数据生成一份深度《全链路商业增长分析报告》。
             
             [核心业绩摘要]
@@ -1084,24 +1165,26 @@ def get_ai_custom_report(report_type):
             - 流量爆款: {', '.join(top_products[:5])}
             - 用户画像: {gender_dist}
 
-            [报告输出规范]
+            [报告结构]
             # 电商数据分析报告
             ## 一、总体业绩评估
             结合 GMV 和客单价分析当前的营收结构。请推断目前的市场增长阶段（如：高频低额、高端低频等）并给出理由。
             ## 二、用户画像多维解析
             分析性别构成 ({gender_dist}) 与地域分布 ({top_city}) 的关联性。从数据中提取用户典型的“消费标签”。
             ## 三、品类趋势与毛利拉动
-            深度解析核心品类 {list(top_cats.keys())[0]} 的市场地位，并分析 {top_products[0]} 等爆款商品对长尾商品的带动作用。
+            深度解析核心品类 {list(top_cats.keys())[0]} 的地位，并分析 {top_products[0]} 等爆款商品对长尾商品的带动作用。
             ## 四、全链路增长建议
             针对数据暴露的问题，给出关于“精准获客”、“复购提升”、“品类扩张”的3条具备可操作性的战略建议。
 
-            要求：语言严谨、商业术语准确，深度解读数据背后的“为什么”，而不仅仅是描述“是什么”。用Markdown格式输出。
+            注意：绝对不要在报告中提及日期！用Markdown格式输出。
             """
         elif report_type == 'behavior':
             peak_hours = df['purchase_time'].dt.hour.value_counts().head(3).index.tolist()
             repeat_buy_count = df.groupby('user_id').size()
             repeat_rate = (repeat_buy_count > 1).sum() / len(repeat_buy_count)
             prompt = f"""
+            ### 强制要求：严禁在报告正文中出现任何日期、年份、时间或“报告日期：XXXX”字样！ ###
+
             你是一位资深行为科学家和用户增长专家。请生成一份《用户消费行为与决策模型分析报告》。
             
             [用户行为轨迹数据]
@@ -1119,13 +1202,15 @@ def get_ai_custom_report(report_type):
             ## 三、品类偏好与交叉购买潜能
             基于主消费品类分析其与其他长尾品类的关联性，寻找提升“客单件数(IPT)”的突破口。
             ## 四、私域留存与增长引擎
-            如何利用现有行为数据设计一套提升复购的闭环方案？请给出具体的消息触达时机和权益设计。
+            如何利用现有行为数据 design 一套提升复购的闭环方案？请给出具体的消息触达时机和权益设计。
 
-            要求：视角犀利，结合消费心理学进行深度剖析。用Markdown格式输出。
+            注意：绝对不要在报告中提及日期！用Markdown格式输出。
             """
         else: # recommendation
             prompt = f"""
-            你是一位顶级 AI 算法架构师和推荐引擎专家。请基于以下业务数据为本项目撰写《AI 智能推荐系统迭代与架构方案》。
+            ### 强制要求：严禁在报告正文中出现任何日期、年份、时间或“报告日期：XXXX”字样！ ###
+
+            你是一位顶级 AI 算法架构师和推荐引擎专家。请为本项目撰写《AI 智能推荐系统迭代与架构方案》。
             
             [业务特征画像]
             - 主攻品类: {', '.join(top_cats.keys())}
@@ -1141,22 +1226,30 @@ def get_ai_custom_report(report_type):
             ## 三、冷启动与长尾分发策略
             针对未上榜的新品和长尾商品，提出具体的流量分发机制（如：探索与开发机制 E&E）。
             ## 四、算法迭代路线图
-            请从“基于协同过滤的基础模型”到“基于图神经网络的复杂模型”给出三个阶段的演进方案，并预测每个阶段对转化率 (CVR) 的提升空间。
+            请从“基于协同过滤的基础模型”到“基于图神经网络的复杂模型”给出三个阶段的演进方案。
 
-            要求：技术术语准确（如：Embedding, Rank, Recall 等），逻辑严密。用Markdown格式输出。
+            注意：绝对不要在报告中提及日期！用Markdown格式输出。
             """
 
         # 3. 获取 AI 结果
         report_content = call_deepseek_ai(prompt)
         
-        # 严格校验：如果没有 AI 返回内容，则提示错误，不使用本地模拟数据
+        # 严格校验：如果没有 AI 返回内容，则提示错误
         if not report_content:
             return jsonify({
                 'error': 'AI 报告生成失败',
-                'message': '检测到未配置有效的 DEEPSEEK_API_KEY 或 API 调用频率受限。请在后端 app.py 中配置正确的 API Key 后重试。'
+                'message': '检测到未配置有效的 DEEPSEEK_API_KEY 或 API 调用频率受限。'
             }), 403
             
-        return jsonify({'report': report_content})
+        # 4. 存入缓存
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        save_report_to_cache(report_type, report_content, current_version)
+        
+        return jsonify({
+            'report': report_content, 
+            'cached': False,
+            'updated_at': now_str
+        })
     except Exception as e:
         print(f"Report Error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -1166,9 +1259,7 @@ def get_ai_analysis_report_legacy():
     # 兼容旧版调用，默认返回全站分析
     return get_ai_custom_report('analysis')
 
-# =================================================================
-# 主程序启动
-# =================================================================
 if __name__ == '__main__':
     # 开发环境启动模式，监听 5000 端口
-    app.run(debug=True, port=5000)
+    # 使用 host='0.0.0.0' 以确保在各种网络环境下都能被前端正常访问
+    app.run(debug=True, host='0.0.0.0', port=5000)

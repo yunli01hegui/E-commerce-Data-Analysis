@@ -32,7 +32,7 @@
                 :class="$route.path === '/ai' ? '' : 'text-slate-300 hover:text-white hover:bg-slate-700'"
               >
                 <Sparkles class="w-4 h-4" />
-                <span>AI 智能推荐</span>
+                <span>AI 智能分析</span>
               </router-link>
               <router-link
                 to="/data"

@@ -26,6 +26,11 @@ const routes = [
       },
     ],
   },
+  // 捕获所有未定义的路径并重定向到主页
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
+  }
 ]
 
 const router = createRouter({

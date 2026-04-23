@@ -6,7 +6,7 @@
         <Sparkles class="w-6 h-6 text-blue-400" />
         <h2 class="text-2xl font-bold text-white">AI 智能分析</h2>
       </div>
-      <p class="text-slate-300">基于 DeepSeek 大模型的智能数据分析和推荐优化</p>
+      <p class="text-slate-300">基于 DeepSeek 大模型的全站数据深度洞察与智能分析</p>
     </div>
 
     <!-- 报告类型选择 -->
@@ -25,7 +25,13 @@
     </div>
 
     <!-- 报告内容 -->
-    <div v-if="activeReport" class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+    <div v-if="activeReport" class="bg-slate-800 rounded-lg p-6 border border-slate-700 relative">
+      <!-- 报告生成时间展示 -->
+      <div v-if="reportTime && !loading" class="absolute top-4 right-6 flex items-center gap-1.5 text-slate-500 text-xs font-mono bg-slate-900/50 px-3 py-1 rounded-full border border-slate-700/50">
+        <Clock class="w-3.5 h-3.5" />
+        报告生成于: {{ reportTime }}
+      </div>
+
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-xl font-semibold text-white">
           {{ reportButtons.find(btn => btn.type === activeReport)?.title }}
@@ -83,7 +89,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { Sparkles, FileText, User, Lightbulb, Loader2 } from 'lucide-vue-next';
+import { Sparkles, FileText, User, Lightbulb, Loader2, Clock } from 'lucide-vue-next';
 import { callDeepSeekAPI } from '../utils/api';
 import { fetchAllStats } from '../data/mockData';
 
@@ -92,6 +98,7 @@ type ReportType = 'analysis' | 'behavior' | 'recommendation';
 const activeReport = ref<ReportType | null>(null);
 const loading = ref(false);
 const reportContent = ref('');
+const reportTime = ref('');
 
 onMounted(() => {
   fetchAllStats();
@@ -101,10 +108,13 @@ const generateReport = async (type: ReportType) => {
   activeReport.value = type;
   loading.value = true;
   reportContent.value = '';
+  reportTime.value = '';
 
   try {
+    // 逻辑已迁移至后端，直接传入类型即可获取专业报告和生成时间
     const result = await callDeepSeekAPI(type);
-    reportContent.value = result;
+    reportContent.value = result.report;
+    reportTime.value = result.updated_at || '';
   } catch (error) {
     console.error('AI Report Generation Error:', error);
     reportContent.value = '生成报告失败，请检查 API 配置或网络连接。';

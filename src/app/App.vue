@@ -6,10 +6,15 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { fetchOrderData } from './data/mockData';
+
+const router = useRouter();
 
 onMounted(() => {
   fetchOrderData();
+  // 强制每次加载应用（包括刷新）都回到数据大屏
+  router.push('/');
 });
 </script>
 
