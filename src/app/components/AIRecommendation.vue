@@ -42,12 +42,37 @@
         </div>
         <div v-if="reportContent" class="text-slate-300 whitespace-pre-wrap leading-relaxed">
           <template v-for="(line, index) in parsedContent" :key="index">
+            <!-- 标题渲染 -->
             <h1 v-if="line.type === 'h1'" class="text-2xl font-bold text-white mt-6 mb-4" v-html="line.content"></h1>
             <h2 v-else-if="line.type === 'h2'" class="text-xl font-bold text-white mt-5 mb-3" v-html="line.content"></h2>
             <h3 v-else-if="line.type === 'h3'" class="text-lg font-semibold text-white mt-4 mb-2" v-html="line.content"></h3>
+            
+            <!-- 列表渲染 -->
             <li v-else-if="line.type === 'li'" class="ml-4 mb-1" v-html="line.content"></li>
+            
+            <!-- 分割线渲染 -->
             <hr v-else-if="line.type === 'hr'" class="my-6 border-slate-600" />
+            
+            <!-- 表格渲染 -->
+            <div v-else-if="line.type === 'table'" class="my-6 overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50 shadow-inner">
+              <table class="w-full text-sm text-left border-collapse">
+                <thead>
+                  <tr class="bg-slate-800/80">
+                    <th v-for="(header, i) in line.headers" :key="i" class="px-4 py-3 font-bold text-slate-200 border-b border-slate-700" v-html="header"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, ri) in line.rows" :key="ri" class="border-b border-slate-800 hover:bg-slate-800/40 transition-colors">
+                    <td v-for="(cell, ci) in row" :key="ci" class="px-4 py-3 text-slate-300" v-html="cell"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 普通段落渲染 -->
             <p v-else-if="line.type === 'p'" class="mb-3" v-html="line.content"></p>
+            
+            <!-- 换行渲染 -->
             <br v-else-if="line.type === 'br'" />
           </template>
         </div>
@@ -78,7 +103,6 @@ const generateReport = async (type: ReportType) => {
   reportContent.value = '';
 
   try {
-    // 逻辑已迁移至后端，直接传入类型即可获取专业报告
     const result = await callDeepSeekAPI(type);
     reportContent.value = result;
   } catch (error) {
@@ -92,7 +116,6 @@ const generateReport = async (type: ReportType) => {
 const parsedContent = computed(() => {
   if (!reportContent.value) return [];
 
-  // 简单的 Markdown 处理函数，处理加粗和内联代码
   const parseInline = (text: string) => {
     return text
       .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
@@ -100,21 +123,74 @@ const parsedContent = computed(() => {
       .replace(/`(.*?)`/g, '<code class="bg-slate-700 px-1 rounded text-blue-300">$1</code>');
   };
 
-  return reportContent.value.split('\n').map(line => {
+  const lines = reportContent.value.split('\n');
+  const result: any[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
     const trimmed = line.trim();
-    if (trimmed.startsWith('# ')) return { type: 'h1', content: parseInline(trimmed.slice(2)) };
-    if (trimmed.startsWith('## ')) return { type: 'h2', content: parseInline(trimmed.slice(3)) };
-    if (trimmed.startsWith('### ')) return { type: 'h3', content: parseInline(trimmed.slice(4)) };
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      return { type: 'li', content: parseInline(trimmed.slice(2)) };
+
+    // 表格识别逻辑
+    if (trimmed.startsWith('|')) {
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+      
+      if (tableLines.length >= 2) {
+        // 解析表头
+        const headers = tableLines[0]
+          .split('|')
+          .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
+          .map(c => parseInline(c.trim()));
+        
+        // 解析数据行（跳过表头和分割线）
+        const rows = tableLines.slice(2)
+          .map(rowLine => 
+            rowLine.split('|')
+            .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
+            .map(c => parseInline(c.trim()))
+          );
+        
+        result.push({ type: 'table', headers, rows });
+      }
+      continue;
     }
-    if (/^\d+\.\s/.test(trimmed)) {
-      return { type: 'li', content: parseInline(trimmed.replace(/^\d+\.\s/, '')) };
+
+    // 标题
+    if (trimmed.startsWith('# ')) {
+      result.push({ type: 'h1', content: parseInline(trimmed.slice(2)) });
+    } else if (trimmed.startsWith('## ')) {
+      result.push({ type: 'h2', content: parseInline(trimmed.slice(3)) });
+    } else if (trimmed.startsWith('### ')) {
+      result.push({ type: 'h3', content: parseInline(trimmed.slice(4)) });
+    } 
+    // 列表
+    else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      result.push({ type: 'li', content: parseInline(trimmed.slice(2)) });
+    } 
+    // 有序列表
+    else if (/^\d+\.\s/.test(trimmed)) {
+      result.push({ type: 'li', content: parseInline(trimmed.replace(/^\d+\.\s/, '')) });
     }
-    if (trimmed.startsWith('---')) return { type: 'hr' };
-    if (trimmed) return { type: 'p', content: parseInline(trimmed) };
-    return { type: 'br' };
-  });
+    // 分割线
+    else if (trimmed.startsWith('---')) {
+      result.push({ type: 'hr' });
+    } 
+    // 段落
+    else if (trimmed) {
+      result.push({ type: 'p', content: parseInline(trimmed) });
+    } 
+    // 换行
+    else {
+      result.push({ type: 'br' });
+    }
+    i++;
+  }
+  
+  return result;
 });
 
 const reportButtons = [
@@ -125,7 +201,6 @@ const reportButtons = [
 </script>
 
 <style scoped>
-/* 确保内联 HTML 样式生效 */
 :deep(strong) {
   color: white;
   font-weight: 700;
