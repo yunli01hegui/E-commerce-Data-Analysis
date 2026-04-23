@@ -1013,7 +1013,7 @@ def clear_all_orders():
 # -----------------------------------------------------------------
 # AI 逻辑配置 (DeepSeek)
 # -----------------------------------------------------------------
-DEEPSEEK_API_KEY = 'sk-6418bb3f49d14047bc5534d07ddc9593'
+DEEPSEEK_API_KEY = 'your deepseek API key'
 DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
 
 def call_deepseek_ai(prompt):
