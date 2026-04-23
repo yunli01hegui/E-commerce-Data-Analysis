@@ -189,7 +189,7 @@ const rfmSegmented = computed(() => rfmAnalysis.rfmSegmented);
 const segmentStats = computed(() => rfmAnalysis.segmentStats);
 
 const segmentArray = computed(() => {
-  return Object.values(segmentStats.value).sort((a: any, b: any) => b.totalAmount - a.totalAmount);
+  return Object.values(segmentStats.value).sort((a: any, b: any) => (b.avgRFM || 0) - (a.avgRFM || 0));
 });
 
 const rfmDescriptions = [
