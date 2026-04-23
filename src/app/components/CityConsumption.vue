@@ -30,13 +30,13 @@
       </div>
     </div>
 
-    <!-- TOP10城市消费排行 -->
+    <!-- 城市消费排行 -->
     <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
       <div class="flex items-center gap-2 mb-6">
         <MapPin class="w-5 h-5 text-blue-400" />
-        <h3 class="text-xl font-semibold text-white">城市消费排行 TOP 10</h3>
+        <h3 class="text-xl font-semibold text-white">城市消费排行</h3>
       </div>
-      <div class="h-[400px]">
+      <div :style="{ height: dynamicChartHeight }">
         <v-chart class="h-full w-full" :option="cityRankingOption" autoresize />
       </div>
     </div>
@@ -54,7 +54,7 @@
     <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
       <h3 class="text-xl font-semibold text-white mb-6">城市消费详情</h3>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="(city, index) in cityData.slice(0, 12)" :key="city.city" class="bg-slate-700/50 rounded-lg p-4 hover:bg-slate-700 transition-colors">
+        <div v-for="(city, index) in cityData" :key="city.city" class="bg-slate-700/50 rounded-lg p-4 hover:bg-slate-700 transition-colors">
           <div class="flex items-start justify-between mb-3">
             <div class="flex items-center gap-2">
               <div :class="[
@@ -127,42 +127,53 @@ use([
 const cityData = computed(() => cityConsumption.cityData);
 const tierStats = computed(() => cityConsumption.tierStats);
 
-const top10Cities = computed(() => cityData.value.slice(0, 10));
+// 动态图表高度 (根据城市数量调整，每个城市约 40px)
+const dynamicChartHeight = computed(() => {
+  const height = Math.max(400, cityData.value.length * 40 + 50);
+  return `${height}px`;
+});
 
-const cityRankingOption = computed(() => ({
-  backgroundColor: 'transparent',
-  tooltip: {
-    trigger: 'axis',
-    backgroundColor: '#1e293b',
-    borderColor: '#334155',
-    textStyle: { color: '#fff' },
-    formatter: (params: any) => {
-      const data = top10Cities.value[params[0].dataIndex];
-      return `${data.city}<br/>消费总额: ¥${data.totalAmount.toLocaleString()}<br/>客单价: ¥${data.avgAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-    }
-  },
-  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-  xAxis: {
-    type: 'value',
-    axisLine: { lineStyle: { color: '#334155' } },
-    axisLabel: { color: '#94a3b8' },
-    splitLine: { lineStyle: { color: '#334155' } },
-  },
-  yAxis: {
-    type: 'category',
-    data: top10Cities.value.map(d => d.city).reverse(),
-    axisLine: { lineStyle: { color: '#334155' } },
-    axisLabel: { color: '#94a3b8' },
-  },
-  series: [
-    {
-      name: '消费总额',
-      type: 'bar',
-      data: top10Cities.value.map(d => d.totalAmount).reverse(),
-      itemStyle: { color: '#3b82f6', borderRadius: [0, 4, 4, 0] },
+const cityRankingOption = computed(() => {
+  // 确保数据已按消费总额排序（后端已排好序，这里反转是为了在 y 轴从上到下显示）
+  const sortedData = [...cityData.value].reverse();
+  
+  return {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: '#1e293b',
+      borderColor: '#334155',
+      textStyle: { color: '#fff' },
+      formatter: (params: any) => {
+        const item = sortedData[params[0].dataIndex];
+        return `${item.city}<br/>总消费额: ¥${item.totalAmount.toLocaleString()}<br/>平均客单价: ¥${item.avgAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+      }
     },
-  ],
-}));
+    grid: { left: '3%', right: '8%', bottom: '3%', containLabel: true },
+    xAxis: {
+      type: 'value',
+      name: '总消费额',
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { color: '#94a3b8' },
+      splitLine: { lineStyle: { color: '#334155' } },
+    },
+    yAxis: {
+      type: 'category',
+      name: '城市',
+      data: sortedData.map(d => d.city),
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { color: '#94a3b8' },
+    },
+    series: [
+      {
+        name: '消费总额',
+        type: 'bar',
+        data: sortedData.map(d => d.totalAmount),
+        itemStyle: { color: '#3b82f6', borderRadius: [0, 4, 4, 0] },
+      },
+    ],
+  };
+});
 
 const cityMatrixOption = computed(() => ({
   backgroundColor: 'transparent',
@@ -171,10 +182,10 @@ const cityMatrixOption = computed(() => ({
     borderColor: '#334155',
     textStyle: { color: '#fff' },
     formatter: (params: any) => {
-      return `${params.data[3]}<br/>订单数: ${params.data[0]}<br/>客单价: ¥${params.data[1].toLocaleString(undefined, { maximumFractionDigits: 0 })}<br/>总额: ¥${params.data[2].toLocaleString()}`;
+      return `${params.data[3]}<br/>订单数: ${params.data[0]}<br/>平均客单价: ¥${params.data[1].toLocaleString(undefined, { maximumFractionDigits: 0 })}<br/>总消费额: ¥${params.data[2].toLocaleString()}`;
     }
   },
-  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  grid: { left: '3%', right: '8%', bottom: '3%', containLabel: true },
   xAxis: {
     type: 'value',
     name: '订单数',
@@ -184,7 +195,7 @@ const cityMatrixOption = computed(() => ({
   },
   yAxis: {
     type: 'value',
-    name: '客单价',
+    name: '平均客单价',
     axisLine: { lineStyle: { color: '#334155' } },
     axisLabel: { color: '#94a3b8' },
     splitLine: { lineStyle: { color: '#334155' } },

@@ -440,9 +440,8 @@ def city_consumption():
             totalAmount=('amount', 'sum'),
             orderCount=('user_id', 'count'),
             userCount=('user_id', 'nunique')
-        ).reset_index()
-        city_stats_df['avgAmount'] = city_stats_df['totalAmount'] / city_stats_df['orderCount']
-        
+        ).reset_index().sort_values('totalAmount', ascending=False)
+        city_stats_df['avgAmount'] = city_stats_df['totalAmount'] / city_stats_df['orderCount']        
         # 获取每个城市最喜欢的品类
         top_cats = []
         for city in city_stats_df['city']:
