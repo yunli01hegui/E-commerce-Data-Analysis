@@ -62,6 +62,7 @@
           <label class="block text-slate-400 text-xs font-medium mb-1.5 px-1">从活跃用户列表挑选</label>
           <select
             v-model="selectedUserId"
+            @change="onUserSelectChange"
             class="w-full bg-slate-700 text-white border border-slate-600 rounded-lg px-4 py-2 text-sm focus:border-purple-500 outline-none transition-all cursor-pointer"
           >
             <option value="">-- 请选择用户 --</option>
@@ -72,18 +73,23 @@
         </div>
       </div>
 
-      <div class="mt-4 flex items-center justify-between">
-        <p v-if="searchStatus" :class="searchStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'" class="text-xs px-1 font-medium">
-          {{ searchStatus.msg }}
-        </p>
-        <button
-          v-if="selectedUserId"
-          @click="generateReport('behavior')"
-          :disabled="loading"
-          class="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white px-8 py-2 rounded-lg transition-all disabled:opacity-50 font-bold shadow-lg shadow-purple-900/20"
-        >
-          {{ loading ? '报告生成中...' : '开始 AI 深度分析' }}
-        </button>
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-3 items-center gap-4">
+        <div class="flex justify-start">
+          <p v-if="searchStatus" :class="searchStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'" class="text-xs px-1 font-medium animate-in fade-in duration-300">
+            {{ searchStatus.msg }}
+          </p>
+        </div>
+        <div class="flex justify-center">
+          <button
+            v-if="selectedUserId"
+            @click="generateReport('behavior')"
+            :disabled="loading"
+            class="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white px-10 py-2.5 rounded-lg transition-all disabled:opacity-50 font-bold shadow-lg shadow-purple-900/20 active:scale-95 whitespace-nowrap"
+          >
+            {{ loading ? '报告生成中...' : '开始 AI 深度分析' }}
+          </button>
+        </div>
+        <div class="hidden md:block"></div>
       </div>
     </div>
 
@@ -142,6 +148,13 @@ onMounted(() => {
 });
 
 const uniqueUsers = computed(() => (userList || []).slice(0, 100));
+
+const onUserSelectChange = () => {
+  if (selectedUserId.value) {
+    searchKeyword.value = '';
+    searchStatus.value = null;
+  }
+};
 
 const handleManualSearch = async () => {
   const kw = searchKeyword.value.trim();
