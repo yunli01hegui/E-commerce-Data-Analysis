@@ -250,6 +250,7 @@ const searchStatus = ref<{ type: 'success' | 'error', msg: string } | null>(null
 
 const onUserChange = () => {
   if (selectedUserId.value) {
+    searchKeyword.value = '';
     searchStatus.value = null;
     fetchUserRecs(selectedUserId.value);
   }
