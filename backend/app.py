@@ -1119,25 +1119,27 @@ def get_ai_custom_report(report_type):
     report_type: 'analysis' | 'behavior' | 'recommendation'
     """
     try:
+        force_update = request.args.get('force', 'false').lower() == 'true'
         current_version = get_db_version()
         
-        # 1. 优先尝试从缓存获取
-        cached_entry = None
-        if os.path.exists(CACHE_FILE):
-            try:
-                with open(CACHE_FILE, 'r', encoding='utf-8') as f:
-                    cache = json.load(f)
-                    cached_entry = cache.get(report_type)
-            except:
-                pass
-                
-        if cached_entry and cached_entry.get('version') == current_version:
-            print(f"Cache Hit for {report_type}!")
-            return jsonify({
-                'report': cached_entry.get('content'), 
-                'cached': True,
-                'updated_at': cached_entry.get('updated_at')
-            })
+        # 1. 优先尝试从缓存获取 (如果不是强制更新)
+        if not force_update:
+            cached_entry = None
+            if os.path.exists(CACHE_FILE):
+                try:
+                    with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                        cache = json.load(f)
+                        cached_entry = cache.get(report_type)
+                except:
+                    pass
+                    
+            if cached_entry and cached_entry.get('version') == current_version:
+                print(f"Cache Hit for {report_type}!")
+                return jsonify({
+                    'report': cached_entry.get('content'), 
+                    'cached': True,
+                    'updated_at': cached_entry.get('updated_at')
+                })
 
         df = get_df()
         if df.empty: return jsonify({'report': '暂无订单数据，无法生成报告。'})

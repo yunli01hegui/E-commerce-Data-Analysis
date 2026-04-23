@@ -1,11 +1,11 @@
 /**
  * 获取 AI 生成的数据分析报告
  * 
- * 现在支持三种不同的专业分析维度，并返回报告内容和生成时间。
+ * 现在支持三种不同的专业分析维度，并支持强制刷新。
  */
-export async function callDeepSeekAPI(reportType: string): Promise<{ report: string; updated_at?: string }> {
+export async function callDeepSeekAPI(reportType: string, force: boolean = false): Promise<{ report: string; updated_at?: string }> {
   try {
-    const response = await fetch(`http://localhost:5000/api/ai/analysis-report/${reportType}`);
+    const response = await fetch(`http://localhost:5000/api/ai/analysis-report/${reportType}?force=${force}`);
     
     if (!response.ok) {
       const errorData = await response.json();
