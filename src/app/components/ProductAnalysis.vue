@@ -345,7 +345,7 @@ const categoryOption = computed(() => ({
           fontSize: '16',
           fontWeight: 'bold',
           color: '#fff',
-          formatter: '{b} 销售占比 {d}%'
+          formatter: '{b} {d}%'
         }
       },
       labelLine: {

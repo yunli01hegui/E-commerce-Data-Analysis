@@ -178,7 +178,7 @@ const premiumStats = computed(() => {
     { label: '平均客单价', subtitle: '单笔消费水平', value: k.avgPrice || '¥0', icon: Activity, color: 'text-purple-400' },
     { label: '单日销售峰值', subtitle: '历史成交极值', value: k.peakDaySales || '¥0', icon: Award, color: 'text-orange-400' },
     { label: '日均成单效率', subtitle: '平均单日订单', value: k.avgDailyOrders || '0 单', icon: Zap, color: 'text-cyan-400' },
-    { label: '业绩增长率', subtitle: '对比上期表现', value: `+${k.growthRate || 0}%`, icon: TrendingUp, color: 'text-rose-400' },
+    { label: '业绩增长率', subtitle: '对比上期表现', value: `${k.growthRate || 0}%`, icon: TrendingUp, color: 'text-rose-400' },
   ];
 });
 
