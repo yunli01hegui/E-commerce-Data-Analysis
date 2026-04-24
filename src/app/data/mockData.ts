@@ -1,6 +1,6 @@
 import { ref, reactive } from 'vue';
 
-export const BASE_URL = 'http://127.0.0.1:5000/api';
+export const BASE_URL = '/api';
 // export const BASE_URL = '/api';
 
 export const dashboardStats = reactive({

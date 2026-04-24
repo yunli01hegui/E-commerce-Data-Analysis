@@ -67,7 +67,7 @@
     <footer class="mt-12 border-t border-slate-800">
       <div class="max-w-7xl mx-auto px-6 py-6">
         <div class="flex items-center justify-between text-sm text-slate-400">
-          <p>© 2024 电商数据分析平台. Powered by DeepSeek AI.</p>
+          <p>© 2026 电商数据分析平台. Powered by DeepSeek AI.</p>
           <div class="flex items-center gap-2">
             <Github class="w-4 h-4" />
             <span>数据可视化与智能分析解决方案</span>
