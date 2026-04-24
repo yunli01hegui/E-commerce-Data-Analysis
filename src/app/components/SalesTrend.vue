@@ -2,9 +2,13 @@
   <div class="space-y-6">
     <!-- 关键指标卡片 -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div v-for="stat in stats" :key="stat.label" class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-        <div class="text-slate-400 text-sm mb-2">{{ stat.label }}</div>
-        <div class="text-2xl font-bold text-white" :class="stat.colorClass">
+      <div v-for="stat in stats" :key="stat.label" class="bg-slate-800 rounded-lg p-4 border border-slate-700 min-w-0">
+        <div class="text-slate-400 text-sm mb-2 truncate" :title="stat.label">{{ stat.label }}</div>
+        <div 
+          class="text-2xl font-bold text-white truncate" 
+          :class="stat.colorClass"
+          :title="stat.value"
+        >
           {{ stat.value }}
         </div>
       </div>

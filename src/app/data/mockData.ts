@@ -1,6 +1,7 @@
 import { ref, reactive } from 'vue';
 
-export const BASE_URL = '/api';
+export const BASE_URL = 'http://127.0.0.1:5000/api';
+// export const BASE_URL = '/api';
 
 export const dashboardStats = reactive({
   monthlyData: [] as any[],
@@ -16,7 +17,9 @@ export const userDistribution = reactive({
 
 export const productAnalysis = reactive({
   categoryData: [] as any[],
-  productRanking: [] as any[]
+  productRanking: [] as any[],
+  priceRangeData: [] as any[],
+  platformData: [] as any[]
 });
 
 export const rfmAnalysis = reactive({

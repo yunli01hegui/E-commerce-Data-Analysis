@@ -170,42 +170,113 @@ def product_analysis():
     ---
     tags:
       - 大屏数据接口
-    description: 统计全站品类的销售构成，并罗列出吸金能力最强的爆款商品.
-    responses:
-      200:
-        description: 包含品类占比和商品排行榜
+    description: 深度统计全站品类结构、价格带分布、爆款排行及多渠道表现.
     """
     try:
         df = get_df()
-        if df.empty: return jsonify({'categoryData': [], 'productRanking': []})
+        if df.empty: 
+            return jsonify({
+                'categoryData': [], 'productRanking': [], 
+                'priceRangeData': [], 'categoryEfficiency': [], 'stats': {}
+            })
         
-        # 1. 品类统计：计算各品类的总销售额和订单占比
+        # 1. 品类统计
         category_data = df.groupby('category').agg(
             value=('amount', 'sum'),
             count=('user_id', 'count')
         ).reset_index().rename(columns={'category': 'name'}).sort_values('value', ascending=False)
-        category_data['value'] = category_data['value'].astype(float)
         category_data_list = category_data.to_dict('records')
 
-        # 2. 爆款排行：综合统计单个商品的销售总量、总收入和成单数
+        # 2. 爆款排行
         product_ranking = df.groupby(['product_name', 'category']).agg(
             sales=('quantity', 'sum'),
             revenue=('amount', 'sum'),
             orders=('user_id', 'count')
         ).reset_index().sort_values('revenue', ascending=False)
-
-        product_ranking['revenue'] = product_ranking['revenue'].astype(float)
-        product_ranking['sales'] = product_ranking['sales'].astype(int)
-        product_ranking_list = product_ranking.to_dict('records')        
-        # 构建唯一键，解决前端表格渲染 Key 重复问题
+        
+        product_ranking_list = product_ranking.head(50).to_dict('records')
         for p in product_ranking_list:
             p['key'] = f"{p['product_name']}-{p['category']}"
             p['name'] = p.pop('product_name')
 
+        # 3. 动态价格区间分布算法
+        max_p = df['price'].max()
+        if max_p <= 500:
+            bins = [0, 50, 100, 200, 300, float('inf')]
+            labels = ['0-50', '50-100', '100-200', '200-300', '300+']
+        elif max_p <= 2000:
+            bins = [0, 100, 300, 500, 1000, float('inf')]
+            labels = ['0-100', '100-300', '300-500', '500-1000', '1000+']
+        else:
+            step = max_p / 5
+            bins = [0, step, step*2, step*3, step*4, float('inf')]
+            labels = [f"0-{int(step)}", f"{int(step)}-{int(step*2)}", f"{int(step*2)}-{int(step*3)}", f"{int(step*3)}-{int(step*4)}", f"{int(step*4)}+"]
+        
+        df['price_range'] = pd.cut(df['price'], bins=bins, labels=labels, right=False)
+        price_range_df = df.groupby('price_range', observed=False).size().reset_index(name='count')
+        
+        # 【修复点】：在 DataFrame 还是 'price_range' 列名时进行计算
+        if not price_range_df.empty:
+            main_range_val = price_range_df.loc[price_range_df['count'].idxmax(), 'price_range']
+            main_price_range = f"¥{main_range_val}"
+        else:
+            main_price_range = "暂无数据"
+
+        # 转换为列表，并将列名重命名为 range 适配前端
+        price_range_data_list = price_range_df.rename(columns={'price_range': 'range'}).to_dict('records')
+
+        # 4. 品类效能分析
+        category_eff = df.groupby('category').agg(
+            revenue=('amount', 'sum'),
+            volume=('quantity', 'sum'),
+            order_count=('user_id', 'count'),
+            unique_buyers=('user_id', 'nunique')
+        ).reset_index()
+        
+        total_rev_sum = category_eff['revenue'].sum()
+        total_vol_sum = category_eff['volume'].sum()
+        
+        category_eff['rev_ratio'] = (category_eff['revenue'] / total_rev_sum * 100).round(1)
+        category_eff['vol_ratio'] = (category_eff['volume'] / total_vol_sum * 100).round(1)
+        category_eff['avg_unit_price'] = (category_eff['revenue'] / category_eff['volume']).round(2)
+        category_eff['upt'] = (category_eff['volume'] / category_eff['order_count']).round(2)
+        
+        category_eff_list = category_eff.sort_values('revenue', ascending=False).to_dict('records')
+
+        # 5. 核心指标统计
+        total_products = df['product_id'].nunique()
+        total_revenue = float(df['amount'].sum())
+        total_quantity = int(df['quantity'].sum())
+        total_orders = df['user_id'].count()
+        aov = total_revenue / total_orders if total_orders > 0 else 0
+        
+        days_range = (df['purchase_time'].max() - df['purchase_time'].min()).days + 1
+        velocity = total_quantity / days_range if days_range > 0 else 0
+
+        category_eff_sorted = category_eff.sort_values('revenue', ascending=False)
+        top3_rev = category_eff_sorted.head(3)['revenue'].sum()
+        concentration = (top3_rev / total_rev_sum * 100).round(1) if total_rev_sum > 0 else 0
+        
         return jsonify({
             'categoryData': category_data_list,
-            'productRanking': product_ranking_list
+            'productRanking': product_ranking_list,
+            'priceRangeData': price_range_data_list,
+            'categoryEfficiency': category_eff_list,
+            'stats': {
+                'sales_amount': f"¥{total_revenue:,.0f}",
+                'avg_order_value': f"¥{aov:.2f}",
+                'sku_count': f"{total_products:,}",
+                'daily_velocity': f"{velocity:.1f} 件/日",
+                'top_concentration': f"{concentration}%",
+                'order_total': f"{total_orders:,}",
+                'main_price_range': main_price_range
+            }
         })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Error in product_analysis: {e}")
+        return jsonify({'error': str(e)})
     except Exception as e:
         print(f"Error in product_analysis: {e}")
         return jsonify({'categoryData': [], 'productRanking': []})
