@@ -288,17 +288,20 @@ def sales_trend():
     ---
     tags:
       - 大屏数据接口
-    description: 计算最近 12 个月的月度趋势，以及过去 30 天的实时销量。
+    description: 计算月度趋势、每日趋势、周权重分布、24小时热力及关键 KPI。
     responses:
       200:
         description: 成功返回趋势图数据及 KPI
     """
     try:
         df = get_df()
-        if df.empty: return jsonify({'monthlyData': [], 'dailyData': [], 'kpi': {}})
+        if df.empty: return jsonify({
+            'monthlyData': [], 'dailyData': [], 
+            'dayOfWeekData': [], 'hourlyData': [], 
+            'kpi': {}
+        })
         
-        # 1. 月度趋势：只显示有数据的年月
-        # 使用 strftime 格式化日期作为分组键
+        # 1. 月度趋势
         df['month_key'] = df['purchase_time'].dt.strftime('%Y-%m')
         monthly_stats = df.groupby('month_key').agg(
             sales=('amount', 'sum'),
@@ -315,7 +318,8 @@ def sales_trend():
                 'orders': orders_val,
                 'avgAmount': float(sales_val / orders_val) if orders_val > 0 else 0.0
             })
-        # 2. 每日趋势：显示数据库中所有有数据的日期，按日期排序
+
+        # 2. 每日趋势
         daily = df.groupby(df['purchase_time'].dt.date).agg(
             sales=('amount', 'sum'),
             orders=('user_id', 'count')
@@ -324,28 +328,55 @@ def sales_trend():
         daily['date'] = daily['purchase_time'].apply(lambda x: x.strftime('%Y-%m-%d'))
         daily_data = daily[['date', 'sales', 'orders']].to_dict('records')
 
-        # 3. 计算全局 KPI 指标
-        total_sales = float(df['amount'].sum())
-        total_orders = int(len(df))
-        avg_price = float(total_sales / total_orders) if total_orders > 0 else 0.0
+        # 3. 周权重分布 (Day of Week)
+        # 0=Monday, 6=Sunday
+        df['day_of_week'] = df['purchase_time'].dt.dayofweek
+        day_names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+        dow_stats = df.groupby('day_of_week').agg(
+            sales=('amount', 'sum')
+        ).reindex(range(7), fill_value=0).reset_index()
         
-        # 环比增长率计算 (MoM Growth Rate): 
-        # 逻辑：对比数据中的“最新月份”与“上一个自然月”的销售额。
-        # 公式：((本月销售额 - 上月销售额) / 上月销售额) * 100%
+        day_of_week_data = []
+        for _, row in dow_stats.iterrows():
+            day_of_week_data.append({
+                'name': day_names[int(row['day_of_week'])],
+                'sales': float(row['sales'])
+            })
+
+        # 4. 24小时成交热点 (Hourly)
+        df['hour'] = df['purchase_time'].dt.hour
+        hourly_stats = df.groupby('hour').agg(
+            orders=('user_id', 'count')
+        ).reindex(range(24), fill_value=0).reset_index()
+        
+        hourly_data = []
+        for _, row in hourly_stats.iterrows():
+            hourly_data.append({
+                'hour': int(row['hour']),
+                'orders': int(row['orders'])
+            })
+
+        # 5. 计算全局 KPI 指标
+        total_sales_val = float(df['amount'].sum())
+        total_orders_val = int(len(df))
+        avg_price_val = float(total_sales_val / total_orders_val) if total_orders_val > 0 else 0.0
+        
+        # 峰值与均值
+        peak_day_sales = float(daily['sales'].max()) if not daily.empty else 0.0
+        days_count = (df['purchase_time'].max() - df['purchase_time'].min()).days + 1
+        avg_daily_orders = float(total_orders_val / days_count) if days_count > 0 else 0.0
+
+        # 环比增长率
         if not monthly_stats.empty:
-            # 按月份排序获取最后一个月作为“本月”
             sorted_stats = monthly_stats.sort_values('month_key')
             latest_row = sorted_stats.iloc[-1]
-            curr_month_key = latest_row['month_key']
             curr_sales = float(latest_row['sales'])
             
-            # 计算上个月的 key (逻辑：获取本月第一天，减去一天即为上月)
-            latest_date = pd.to_datetime(curr_month_key + '-01')
+            latest_date = pd.to_datetime(latest_row['month_key'] + '-01')
             prev_month_date = latest_date - pd.Timedelta(days=1)
             last_month_key = prev_month_date.strftime('%Y-%m')
             
             prev_sales = float(monthly_stats[monthly_stats['month_key'] == last_month_key]['sales'].sum())
-            # 计算百分比增长，若上月无销售额则默认为 0
             growth_rate = float(((curr_sales - prev_sales) / prev_sales * 100)) if prev_sales > 0 else 0.0
         else:
             growth_rate = 0.0
@@ -353,16 +384,26 @@ def sales_trend():
         return jsonify({
             'monthlyData': monthly_data,
             'dailyData': daily_data,
+            'dayOfWeekData': day_of_week_data,
+            'hourlyData': hourly_data,
             'kpi': {
-                'totalSales': total_sales,
-                'totalOrders': total_orders,
-                'avgPrice': avg_price,
-                'growthRate': growth_rate
+                'totalSales': f"¥{total_sales_val:,.0f}",
+                'totalOrders': f"{total_orders_val:,}",
+                'avgPrice': f"¥{avg_price_val:.2f}",
+                'peakDaySales': f"¥{peak_day_sales:,.0f}",
+                'avgDailyOrders': f"{avg_daily_orders:.1f} 单",
+                'growthRate': round(growth_rate, 1)
             }
         })
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error in sales_trend: {e}")
-        return jsonify({'monthlyData': [], 'dailyData': [], 'kpi': {}})
+        return jsonify({
+            'monthlyData': [], 'dailyData': [], 
+            'dayOfWeekData': [], 'hourlyData': [], 
+            'kpi': {}
+        })
 
 @app.route('/api/stats/gender-analysis', methods=['GET'])
 def gender_analysis():
@@ -1084,7 +1125,7 @@ def clear_all_orders():
 # -----------------------------------------------------------------
 # AI 逻辑配置 (DeepSeek)
 # -----------------------------------------------------------------
-DEEPSEEK_API_KEY = 'your deepseek API key'
+DEEPSEEK_API_KEY = 'deepseek api key'
 DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
 
 def call_deepseek_ai(prompt):
@@ -1186,145 +1227,127 @@ def save_report_to_cache(report_type, content, version):
 @app.route('/api/ai/analysis-report/<report_type>', methods=['GET'])
 def get_ai_custom_report(report_type):
     """
-    根据类型生成对应的 AI 深度报告
-    report_type: 'analysis' | 'behavior' | 'recommendation'
+    【AI 全站全量数据智能审计接口】
+    基于全量订单数据提取深度商业指纹，驱动 DeepSeek 生成专业报告。
     """
     try:
         force_update = request.args.get('force', 'false').lower() == 'true'
         current_version = get_db_version()
         
-        # 1. 优先尝试从缓存获取 (如果不是强制更新)
+        # 1. 缓存层校验
         if not force_update:
-            cached_entry = None
-            if os.path.exists(CACHE_FILE):
-                try:
-                    with open(CACHE_FILE, 'r', encoding='utf-8') as f:
-                        cache = json.load(f)
-                        cached_entry = cache.get(report_type)
-                except:
-                    pass
-                    
-            if cached_entry and cached_entry.get('version') == current_version:
-                print(f"Cache Hit for {report_type}!")
+            cached_entry = get_cached_report(report_type, current_version)
+            if cached_entry:
                 return jsonify({
-                    'report': cached_entry.get('content'), 
-                    'cached': True,
-                    'updated_at': cached_entry.get('updated_at')
+                    'report': cached_entry, 
+                    'cached': True, 
+                    'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 })
 
         df = get_df()
-        if df.empty: return jsonify({'report': '暂无订单数据，无法生成报告。'})
+        if df.empty: return jsonify({'report': '数据库当前无有效订单，请先导入数据后再试。'})
 
-        # 核心指标计算
+        # ---------------------------------------------------------
+        # 【全量数据特征增强预处理】
+        # ---------------------------------------------------------
+        # A. 业绩与效率指标
         total_sales = float(df['amount'].sum())
         total_orders = int(len(df))
+        total_users = int(df['user_id'].nunique())
+        total_qty = int(df['quantity'].sum())
         avg_price = total_sales / total_orders if total_orders > 0 else 0
+        ipt = total_qty / total_orders if total_orders > 0 else 0  # 笔单件 (Items Per Ticket)
+        
+        # B. 客户忠诚度 (复购分析)
+        user_order_counts = df.groupby('user_id').size()
+        repeat_user_count = int((user_order_counts > 1).sum())
+        repeat_rate = (repeat_user_count / total_users * 100) if total_users > 0 else 0
+        
+        # C. 品类与定价指纹
         top_cats = df.groupby('category')['amount'].sum().nlargest(5).to_dict()
-        gender_dist = df['gender'].value_counts().to_dict()
-        top_city = df['city'].value_counts().idxmax()
         top_products = df.groupby('product_name')['amount'].sum().nlargest(10).index.tolist()
+        price_median = float(df['price'].median())
+        
+        # D. 人口学全景
+        gender_dist = df['gender'].value_counts(normalize=True).to_dict()
+        age_bins = [0, 18, 25, 35, 45, 55, 65, 120]
+        age_labels = ['18岁以下', '18-25', '26-35', '36-45', '46-55', '56-65', '66+']
+        df['age_group'] = pd.cut(df['age'], bins=age_bins, labels=age_labels, include_lowest=True)
+        age_dist = df['age_group'].value_counts().to_dict()
+        top_cities = df.groupby('city')['amount'].sum().nlargest(5).to_dict()
+        
+        # E. 时域消费节律
+        peak_hours = df['purchase_time'].dt.hour.value_counts().head(3).index.tolist()
+        top_day = df['purchase_time'].dt.day_name().value_counts().idxmax()
 
+        # ---------------------------------------------------------
+        # 【全量数据驱动的定制化提示词】
+        # ---------------------------------------------------------
         if report_type == 'analysis':
             prompt = f"""
-            ### 强制要求：严禁在报告正文中出现任何日期、年份、时间或“报告日期：XXXX”字样！ ###
+            你是一位首席商业增长官。请基于全站 {total_orders} 笔全量数据生成《电商数据深度分析报告》。
+            [全量数据指纹] GMV ¥{total_sales:,.2f}，活跃用户 {total_users}，复购率 {repeat_rate:.1f}%，笔单件 {ipt:.2f}，中位数价格 ¥{price_median}，前五城市 {top_cities}，核心品类 {top_cats}。
             
-            你是一位资深首席数据官(CDO)。请基于以下全站真实交易数据生成一份深度《全链路商业增长分析报告》。
-            
-            [核心业绩摘要]
-            - 平台总GMV: ¥{total_sales:,.2f}
-            - 订单总量: {total_orders} 笔 (平均客单价: ¥{avg_price:,.2f})
-            - 地区表现: {top_city} 贡献度最高
-            - 品类排行: {top_cats}
-            - 流量爆款: {', '.join(top_products[:5])}
-            - 用户画像: {gender_dist}
-
-            [报告结构]
-            # 电商数据分析报告
+            [报告结构需求]
+            # 电商数据深度分析报告
             ## 一、总体业绩评估
-            结合 GMV 和客单价分析当前的营收结构。请推断目前的市场增长阶段（如：高频低额、高端低频等）并给出理由。
+            结合 GMV、复购率({repeat_rate:.1f}%) 和笔单件({ipt:.2f}) 分析平台目前的生命周期阶段与增长质量。
             ## 二、用户画像多维解析
-            分析性别构成 ({gender_dist}) 与地域分布 ({top_city}) 的关联性。从数据中提取用户典型的“消费标签”。
+            利用地域分布和年龄段特征，深度刻画三类典型高价值用户的“消费标签”。
             ## 三、品类趋势与毛利拉动
-            深度解析核心品类 {list(top_cats.keys())[0]} 的地位，并分析 {top_products[0]} 等爆款商品对长尾商品的带动作用。
+            分析核心品类 {list(top_cats.keys())[0]} 的统治地位及对长尾商品的带动效应。针对中位数价格提出定价优化策略。
             ## 四、全链路增长建议
-            针对数据暴露的问题，给出关于“精准获客”、“复购提升”、“品类扩张”的3条具备可操作性的战略建议。
-
-            注意：绝对不要在报告中提及日期！用Markdown格式输出。
+            给出关于精准获客、存量促活、以及品类扩张的3条实战级战略建议。
             """
         elif report_type == 'behavior':
-            peak_hours = df['purchase_time'].dt.hour.value_counts().head(3).index.tolist()
-            repeat_buy_count = df.groupby('user_id').size()
-            repeat_rate = (repeat_buy_count > 1).sum() / len(repeat_buy_count)
             prompt = f"""
-            ### 强制要求：严禁在报告正文中出现任何日期、年份、时间或“报告日期：XXXX”字样！ ###
-
-            你是一位资深行为科学家和用户增长专家。请生成一份《用户消费行为与决策模型分析报告》。
+            你是一位资深行为心理学家。请基于全量用户行为轨迹生成《用户消费行为与决策模型报告》。
+            [行为特征矩阵] 复购率 {repeat_rate:.1f}%，最强成交日 {top_day}，高峰时段 {peak_hours}点，核心年龄段 {max(age_dist, key=age_dist.get)}，性别分布 {gender_dist}。
             
-            [用户行为轨迹数据]
-            - 客单价水平: ¥{avg_price:,.2f}
-            - 忠诚度指标: 估算复购率 {repeat_rate:.1%}
-            - 下单时段特征: 高峰集中在 {peak_hours} 点
-            - 用户基本属性: {gender_dist} / 核心城市 {top_city}
-
-            [分析要求]
+            [报告结构需求]
             # 用户行为深度分析报告
-            ## 一、价值矩阵分析
-            利用 RFM 逻辑（基于复购率 {repeat_rate:.1%} 和客单价）分析用户的生命周期阶段。判断目前用户是属于“价格敏感型”还是“品质驱动型”。
-            ## 二、消费决策路径与时效性
-            分析 {peak_hours} 点这一购物高峰背后的心理动机。针对该时段的瞬时转化，应采取何种“心理助推(Nudge)”策略？
-            ## 三、品类偏好与交叉购买潜能
-            基于主消费品类分析其与其他长尾品类的关联性，寻找提升“客单件数(IPT)”的突破口。
-            ## 四、私域留存与增长引擎
-            如何利用现有行为数据 design 一套提升复购的闭环方案？请给出具体的消息触达时机和权益设计。
-
-            注意：绝对不要在报告中提及日期！用Markdown格式输出。
+            ## 一、价值矩阵与忠诚度分析
+            深度剖析复购率背后用户的品牌忠诚度。为何用户在 {list(top_cats.keys())[0]} 品类产生高频心智？
+            ## 二、消费决策路径与心理
+            分析 {top_day} 和 {peak_hours}点 背后隐藏的用户场景（如：职场补偿、深夜独处等心理动机）。
+            ## 三、品类偏好与欲望图谱
+            结合性别与年龄，分析不同群体在 ¥{price_median}(中位数) 价格锚点下的决策门槛。
+            ## 四、私域留存方案
+            基于现有周消费节律，设计一套能够提升 LTV 的“心理助推”增长方案。
             """
         else: # recommendation
             prompt = f"""
-            ### 强制要求：严禁在报告正文中出现任何日期、年份、时间或“报告日期：XXXX”字样！ ###
-
-            你是一位顶级 AI 算法架构师和推荐引擎专家。请为本项目撰写《AI 智能推荐系统迭代与架构方案》。
+            你是一位首席 AI 算法科学家。请基于全站全量数据架构撰写《AI 智能推荐系统迭代方案》。
+            [算法输入全景] 样本规模 {total_orders} 笔流水，特征包含复购周期、笔单件 {ipt:.2f}、地域权重 {list(top_cities.keys())} 及 7 个年龄段分布。
             
-            [业务特征画像]
-            - 主攻品类: {', '.join(top_cats.keys())}
-            - 地理热力点: {top_city}
-            - 交易密度: {total_orders} 笔
-
-            [方案大纲]
+            [报告结构需求]
             # 智能推荐系统优化方案
             ## 一、现有推荐算法效能评估
-            分析当前品类集中度（{list(top_cats.keys())[0]} 为主）对算法“多样性”和“惊喜度”带来的挑战。
+            分析当前高集中度品类 ({list(top_cats.keys())[0]}) 带来的“推荐茧房”风险。
             ## 二、特征工程与模型增强
-            说明如何将“性别 ({gender_dist})”、“地域权重 ({top_city})”和“下单时序”转化为深度学习模型的输入特征，以提升点击率 (CTR)。
-            ## 三、冷启动与长尾分发策略
-            针对未上榜的新品和长尾商品，提出具体的流量分发机制（如：探索与开发机制 E&E）。
-            ## 四、算法迭代路线图
-            请从“基于协同过滤的基础模型”到“基于图神经网络的复杂模型”给出三个阶段的演进方案。
-
-            注意：绝对不要在报告中提及日期！用Markdown格式输出。
+            说明如何将复购特征和地域 Embedding 引入 CTR 预估模型，以提升点击率。
+            ## 三、长尾分发与多样性策略
+            针对非爆款商品设计一套基于强化学习的流量探测机制。
+            ## 四、算法演进路线图
+            给出从现有模型到大模型(LLM)驱动的多任务学习系统的三步走升级方案。
             """
 
-        # 3. 获取 AI 结果
-        report_content = call_deepseek_ai(prompt)
+        # 3. AI 调用与缓存存储
+        full_prompt = f"### 严禁出现日期字样，严格按照 Markdown 格式输出 ###\n{prompt}"
+        report_content = call_deepseek_ai(full_prompt)
         
-        # 严格校验：如果没有 AI 返回内容，则提示错误
         if not report_content:
-            return jsonify({
-                'error': 'AI 报告生成失败',
-                'message': '检测到未配置有效的 DEEPSEEK_API_KEY 或 API 调用频率受限。'
-            }), 403
+            return jsonify({'error': 'AI 报告生成失败', 'message': 'API 调用受限或 Key 配置错误'}), 403
             
-        # 4. 存入缓存
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         save_report_to_cache(report_type, report_content, current_version)
-        
         return jsonify({
             'report': report_content, 
             'cached': False,
-            'updated_at': now_str
+            'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         })
     except Exception as e:
-        print(f"Report Error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/ai/analysis-report', methods=['GET'])
