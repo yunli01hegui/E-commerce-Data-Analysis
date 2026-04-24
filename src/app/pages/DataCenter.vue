@@ -274,7 +274,7 @@ import {
 import { fetchAllStats } from '../data/mockData';
 
 // 接口基础配置
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = '/api';
 
 // 表头定义
 const headers = [

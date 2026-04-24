@@ -5,7 +5,7 @@
  */
 export async function callDeepSeekAPI(reportType: string, force: boolean = false): Promise<{ report: string; updated_at?: string }> {
   try {
-    const response = await fetch(`http://localhost:5000/api/ai/analysis-report/${reportType}?force=${force}`);
+    const response = await fetch(`/api/ai/analysis-report/${reportType}?force=${force}`);
     
     if (!response.ok) {
       const errorData = await response.json();
