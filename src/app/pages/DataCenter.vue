@@ -271,10 +271,7 @@ import {
   Database, Search, Plus, Upload, Trash2, Edit2, ChevronLeft, ChevronRight, 
   Save, X, PlusCircle, Check 
 } from 'lucide-vue-next';
-import { fetchAllStats } from '../data/mockData';
-
-// 接口基础配置
-const BASE_URL = '/api';
+import { fetchAllStats, BASE_URL } from '../data/mockData';
 
 // 表头定义
 const headers = [
@@ -342,6 +339,7 @@ const toggleSelectAll = () => {
 };
 
 const handleClearAll = async () => {
+
   if (!confirm('警告：此操作将永久删除数据库中的【全部】订单记录！是否继续？')) return;
   try {
     const res = await fetch(`${BASE_URL}/orders/clear`, { method: 'DELETE' });
@@ -405,15 +403,16 @@ const visiblePages = computed(() => {
 const fetchOrders = async () => {
   loading.value = true;
   try {
-    const url = new URL(`${BASE_URL}/orders`);
-    url.searchParams.append('page', currentPage.value.toString());
-    url.searchParams.append('limit', pageSize.toString());
-    url.searchParams.append('search', searchQuery.value);
-    url.searchParams.append('column', searchColumn.value);
-    
-    const res = await fetch(url.toString());
+    const params = new URLSearchParams({
+      page: currentPage.value.toString(),
+      limit: pageSize.toString(),
+      search: searchQuery.value,
+      column: searchColumn.value
+    });
+
+    const res = await fetch(`${BASE_URL}/orders?${params.toString()}`);
     const data = await res.json();
-    
+
     if (res.ok) {
       orders.value = data.data || [];
       total.value = data.total || 0;

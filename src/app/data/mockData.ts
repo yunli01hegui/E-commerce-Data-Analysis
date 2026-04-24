@@ -1,6 +1,6 @@
 import { ref, reactive } from 'vue';
 
-const BASE_URL = '/api';
+export const BASE_URL = '/api';
 
 export const dashboardStats = reactive({
   monthlyData: [] as any[],

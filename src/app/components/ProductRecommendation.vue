@@ -241,7 +241,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { Sparkles, TrendingUp, Users, Layers, Search } from 'lucide-vue-next';
-import { productAnalysis, userList, productRecommendation, fetchUserRecs } from '../data/mockData';
+import { productAnalysis, userList, productRecommendation, fetchUserRecs, BASE_URL } from '../data/mockData';
 
 const selectedUserId = ref('');
 const searchType = ref<'id' | 'name'>('name');
@@ -263,7 +263,7 @@ const handleManualSearch = async () => {
   searchStatus.value = { type: 'success', msg: '正在数据库中检索...' };
 
   try {
-    const res = await fetch(`http://localhost:5000/api/users/search?keyword=${encodeURIComponent(kw)}&type=${searchType.value}`);
+    const res = await fetch(`${BASE_URL}/users/search?keyword=${encodeURIComponent(kw)}&type=${searchType.value}`);
     const found = await res.json();
 
     if (found) {

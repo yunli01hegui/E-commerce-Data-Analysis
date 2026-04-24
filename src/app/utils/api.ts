@@ -1,3 +1,5 @@
+import { BASE_URL } from '../data/mockData';
+
 /**
  * 获取 AI 生成的数据分析报告
  * 
@@ -5,7 +7,7 @@
  */
 export async function callDeepSeekAPI(reportType: string, force: boolean = false): Promise<{ report: string; updated_at?: string }> {
   try {
-    const response = await fetch(`/api/ai/analysis-report/${reportType}?force=${force}`);
+    const response = await fetch(`${BASE_URL}/ai/analysis-report/${reportType}?force=${force}`);
     
     if (!response.ok) {
       const errorData = await response.json();
