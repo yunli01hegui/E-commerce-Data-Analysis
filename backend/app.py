@@ -1127,7 +1127,7 @@ def clear_all_orders():
 # -----------------------------------------------------------------
 DEEPSEEK_API_KEY = 'deepseek api key'
 DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
-
+#
 def call_deepseek_ai(prompt):
     """调用 DeepSeek API 的通用函数"""
     if not DEEPSEEK_API_KEY or DEEPSEEK_API_KEY == 'YOUR_DEEPSEEK_API_KEY_HERE':
@@ -1200,7 +1200,7 @@ def get_cached_report(report_type, current_version):
             cache = json.load(f)
             entry = cache.get(report_type)
             if entry and entry.get('version') == current_version:
-                return entry.get('content')
+                return entry
     except:
         pass
     return None
@@ -1239,9 +1239,9 @@ def get_ai_custom_report(report_type):
             cached_entry = get_cached_report(report_type, current_version)
             if cached_entry:
                 return jsonify({
-                    'report': cached_entry, 
+                    'report': cached_entry.get('content'), 
                     'cached': True, 
-                    'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    'updated_at': cached_entry.get('updated_at')
                 })
 
         df = get_df()
