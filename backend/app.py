@@ -1518,7 +1518,17 @@ def export_report_pdf(report_type):
             i += 1
 
         # 4. 构建 PDF
-        doc.build(elements)
+        def add_page_number(canvas, doc):
+            page_num = canvas.getPageNumber()
+            text = f"第 {page_num} 页"
+            canvas.saveState()
+            canvas.setFont(font_name, 9)
+            canvas.setFillColor(colors.grey)
+            # 在底部中央绘制页码 (A4 宽度约 210mm)
+            canvas.drawCentredString(105*mm, 10*mm, text)
+            canvas.restoreState()
+
+        doc.build(elements, onFirstPage=add_page_number, onLaterPages=add_page_number)
         buffer.seek(0)
         
         from flask import send_file
