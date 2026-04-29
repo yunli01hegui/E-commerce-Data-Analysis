@@ -1387,24 +1387,46 @@ def export_report_pdf(report_type):
         title_text = title_map.get(report_type, 'AI数据分析报告')
 
         # 1. 注册中文字体 (解决 PDF 中文乱码)
-        font_name = 'SimSun' # 默认
+        # 默认使用 Helvetica (ReportLab 内置)
+        font_name = 'Helvetica' 
         try:
+            from reportlab.pdfbase.pdfmetrics import registerFontFamily
+            
             # 针对 macOS/Linux/Windows 寻找常见中文字体路径
-            paths = [
-                '/System/Library/Fonts/STHeiti Light.ttc', # macOS
-                '/System/Library/Fonts/PingFang.ttc',      # macOS
-                '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf', # Linux
-                'C:\\Windows\\Fonts\\simsun.ttc'           # Windows
+            # 优先级：项目本地字体 > 系统常见字体
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            local_font_paths = [
+                os.path.join(base_dir, 'simsun.ttc'),
+                os.path.join(base_dir, 'simsun.ttf'),
+                os.path.join(base_dir, 'wqy-microhei.ttc'),
+                os.path.join(base_dir, 'data', 'simsun.ttc')
             ]
+            
+            system_paths = [
+                '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc', 
+                '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',   
+                '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc', 
+                '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf', 
+                '/System/Library/Fonts/STHeiti Light.ttc', 
+                '/System/Library/Fonts/PingFang.ttc',      
+                'C:\\Windows\\Fonts\\simsun.ttc'
+            ]
+            
+            all_paths = local_font_paths + system_paths
             registered = False
-            for p in paths:
+            for p in all_paths:
                 if os.path.exists(p):
-                    pdfmetrics.registerFont(TTFont('ChineseFont', p))
-                    font_name = 'ChineseFont'
-                    registered = True
-                    break
+                    try:
+                        pdfmetrics.registerFont(TTFont('ChineseFont', p))
+                        registerFontFamily('ChineseFont', normal='ChineseFont', bold='ChineseFont', italic='ChineseFont', boldItalic='ChineseFont')
+                        font_name = 'ChineseFont'
+                        registered = True
+                        print(f"Successfully registered font: {p}")
+                        break
+                    except: continue
+
             if not registered:
-                print("Warning: No system Chinese font found, PDF may have issues.")
+                print("Warning: No Chinese font found. Please upload 'simsun.ttc' to the backend directory.")
         except Exception as e:
             print(f"Font registration error: {e}")
 
