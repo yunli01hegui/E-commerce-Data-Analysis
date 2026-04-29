@@ -165,7 +165,9 @@ const downloadPDF = async () => {
     const response = await fetch(`${BASE_URL}/ai/export-pdf/${activeReport.value}`);
     
     if (!response.ok) {
-      throw new Error('后端生成 PDF 失败');
+      // 尝试解析后端返回的错误信息
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || '后端生成 PDF 失败');
     }
 
     // 处理二进制文件下载
@@ -182,9 +184,9 @@ const downloadPDF = async () => {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
-  } catch (error) {
+  } catch (error: any) {
     console.error('PDF 导出失败:', error);
-    alert('报告导出失败，请重试');
+    alert(`导出失败: ${error.message}`);
   } finally {
     isDownloading.value = false;
   }
@@ -209,9 +211,9 @@ const generateReport = async (type: ReportType, force: boolean = false) => {
     const result = await callDeepSeekAPI(type, force);
     reportContent.value = result.report;
     reportTime.value = result.updated_at || '';
-  } catch (error) {
+  } catch (error: any) {
     console.error('AI Report Generation Error:', error);
-    reportContent.value = '生成报告失败，请检查 API 配置或网络连接。';
+    reportContent.value = `### 报告生成失败\n\n**原因**：${error.message}\n\n请检查后端 \`app.py\` 中的 \`DEEPSEEK_API_KEY\` 配置是否正确，或检查网络连接。`;
   } finally {
     loading.value = false;
   }
