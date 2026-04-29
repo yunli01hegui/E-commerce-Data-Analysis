@@ -9,6 +9,15 @@ import os
 import sys
 import importlib
 import json
+import io
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+import platform
 
 # =================================================================
 # 后端程序入口文件
@@ -1354,6 +1363,176 @@ def get_ai_custom_report(report_type):
 def get_ai_analysis_report_legacy():
     # 兼容旧版调用，默认返回全站分析
     return get_ai_custom_report('analysis')
+
+@app.route('/api/ai/export-pdf/<report_type>', methods=['GET'])
+def export_report_pdf(report_type):
+    """
+    【AI 报告导出 PDF 接口】
+    从缓存中读取报告并使用 ReportLab 生成专业 PDF 格式。
+    """
+    try:
+        current_version = get_db_version()
+        cached_entry = get_cached_report(report_type, current_version)
+        
+        if not cached_entry:
+            return jsonify({'error': '未找到对应的报告缓存，请先在页面生成报告'}), 404
+            
+        report_content = cached_entry.get('content')
+        updated_at = cached_entry.get('updated_at')
+        title_map = {
+            'analysis': '数据分析报告',
+            'behavior': '用户行为分析报告',
+            'recommendation': '推荐优化建议方案'
+        }
+        title_text = title_map.get(report_type, 'AI数据分析报告')
+
+        # 1. 注册中文字体 (解决 PDF 中文乱码)
+        font_name = 'SimSun' # 默认
+        try:
+            # 针对 macOS/Linux/Windows 寻找常见中文字体路径
+            paths = [
+                '/System/Library/Fonts/STHeiti Light.ttc', # macOS
+                '/System/Library/Fonts/PingFang.ttc',      # macOS
+                '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf', # Linux
+                'C:\\Windows\\Fonts\\simsun.ttc'           # Windows
+            ]
+            registered = False
+            for p in paths:
+                if os.path.exists(p):
+                    pdfmetrics.registerFont(TTFont('ChineseFont', p))
+                    font_name = 'ChineseFont'
+                    registered = True
+                    break
+            if not registered:
+                print("Warning: No system Chinese font found, PDF may have issues.")
+        except Exception as e:
+            print(f"Font registration error: {e}")
+
+        # 2. 创建 PDF 内存流
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
+        styles = getSampleStyleSheet()
+        
+        # 自定义样式
+        chinese_title_style = ParagraphStyle(
+            'ChineseTitle',
+            parent=styles['Title'],
+            fontName=font_name,
+            fontSize=24,
+            spaceAfter=10,
+            alignment=1 # Center
+        )
+        
+        chinese_body_style = ParagraphStyle(
+            'ChineseBody',
+            parent=styles['Normal'],
+            fontName=font_name,
+            fontSize=11,
+            leading=18,
+            spaceAfter=10
+        )
+
+        chinese_h2_style = ParagraphStyle(
+            'ChineseH2',
+            parent=styles['Heading2'],
+            fontName=font_name,
+            fontSize=16,
+            spaceBefore=15,
+            spaceAfter=10,
+            color=colors.HexColor('#1e40af')
+        )
+
+        elements = []
+        # 添加标题
+        elements.append(Paragraph(title_text, chinese_title_style))
+        elements.append(Paragraph(f"报告生成于: {updated_at}", ParagraphStyle('Sub', parent=chinese_body_style, fontSize=9, textColor=colors.grey, alignment=1)))
+        elements.append(Spacer(1, 10*mm))
+
+        # 3. 简单的 Markdown 语法转换 (处理 #, ##, -, 表格)
+        import re
+        from xml.sax.saxutils import escape
+
+        lines = report_content.split('\n')
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if not line:
+                i += 1
+                continue
+                
+            # 处理表格
+            if line.startswith('|'):
+                table_data = []
+                while i < len(lines) and lines[i].strip().startswith('|'):
+                    row_content = lines[i].strip()
+                    if '---' not in row_content: # 跳过分割线
+                        # 过滤掉空的单元格
+                        cells = [c.strip() for c in row_content.split('|') if c.strip()]
+                        # 对单元格内容进行转义和简单格式化
+                        formatted_cells = []
+                        for c in cells:
+                            c_escaped = escape(c)
+                            # 处理加粗
+                            c_formatted = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', c_escaped)
+                            formatted_cells.append(Paragraph(c_formatted, chinese_body_style))
+                        table_data.append(formatted_cells)
+                    i += 1
+                
+                if table_data:
+                    # 根据列数动态调整列宽
+                    col_count = len(table_data[0])
+                    col_widths = [doc.width / col_count] * col_count
+                    t = Table(table_data, colWidths=col_widths, hAlign='LEFT')
+                    t.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                        ('FONTNAME', (0, 0), (-1, -1), font_name),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                        ('TOPPADDING', (0, 0), (-1, -1), 6),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ]))
+                    elements.append(t)
+                    elements.append(Spacer(1, 5*mm))
+                continue
+
+            # 处理标题和普通文本
+            # 先进行 XML 转义，防止 & < > 导致崩溃
+            escaped_line = escape(line)
+            
+            if escaped_line.startswith('# '):
+                elements.append(Paragraph(escaped_line[2:], chinese_title_style))
+            elif escaped_line.startswith('## '):
+                elements.append(Paragraph(escaped_line[3:], chinese_h2_style))
+            elif escaped_line.startswith('### '):
+                elements.append(Paragraph(escaped_line[4:], ParagraphStyle('H3', parent=chinese_h2_style, fontSize=13)))
+            elif escaped_line.startswith('- ') or escaped_line.startswith('* '):
+                content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', escaped_line[2:])
+                elements.append(Paragraph(f"• {content}", chinese_body_style))
+            else:
+                # 处理行内加粗
+                content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', escaped_line)
+                elements.append(Paragraph(content, chinese_body_style))
+            
+            i += 1
+
+        # 4. 构建 PDF
+        doc.build(elements)
+        buffer.seek(0)
+        
+        from flask import send_file
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=f"{title_text}_{updated_at.replace(':', '-')}.pdf",
+            mimetype='application/pdf'
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     # 开发环境启动模式，监听 5000 端口

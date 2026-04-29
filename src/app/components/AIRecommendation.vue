@@ -70,6 +70,17 @@
           <RotateCw class="w-3.5 h-3.5" />
           更新报告
         </button>
+
+        <button 
+          @click="downloadPDF"
+          :disabled="isDownloading"
+          class="flex items-center gap-1.5 px-3 py-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/30 transition-all active:scale-95 disabled:opacity-50"
+          title="将当前报告下载为 PDF 文件"
+        >
+          <Loader2 v-if="isDownloading" class="w-3.5 h-3.5 animate-spin" />
+          <Download v-else class="w-3.5 h-3.5" />
+          {{ isDownloading ? '正在导出...' : '下载报告' }}
+        </button>
       </div>
 
       <div class="flex items-center justify-between mb-4">
@@ -133,16 +144,51 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { Sparkles, FileText, User, Lightbulb, Loader2, Clock, RotateCw } from 'lucide-vue-next';
+import { Sparkles, FileText, User, Lightbulb, Loader2, Clock, RotateCw, Download } from 'lucide-vue-next';
 import { callDeepSeekAPI } from '../utils/api';
-import { fetchAllStats } from '../data/mockData';
+import { fetchAllStats, BASE_URL } from '../data/mockData';
 
 type ReportType = 'analysis' | 'behavior' | 'recommendation';
 
 const activeReport = ref<ReportType | null>(null);
 const loading = ref(false);
+const isDownloading = ref(false);
 const reportContent = ref('');
 const reportTime = ref('');
+
+const downloadPDF = async () => {
+  if (!activeReport.value) return;
+  isDownloading.value = true;
+  
+  try {
+    // 调用后端 PDF 导出接口
+    const response = await fetch(`${BASE_URL}/ai/export-pdf/${activeReport.value}`);
+    
+    if (!response.ok) {
+      throw new Error('后端生成 PDF 失败');
+    }
+
+    // 处理二进制文件下载
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    // 获取报告标题作为文件名
+    const title = reportButtons.find(btn => btn.type === activeReport.value)?.title || 'AI数据报告';
+    a.download = `${title}.pdf`;
+    
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error('PDF 导出失败:', error);
+    alert('报告导出失败，请重试');
+  } finally {
+    isDownloading.value = false;
+  }
+};
 
 onMounted(() => {
   fetchAllStats();
